@@ -18,8 +18,8 @@ public class RobCogWeb : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"InputCore",
-			"Json",
-			"JsonUtilities",
+			//"Json",
+			//"JsonUtilities",
 			//"XmlParser"
 			//"HydraPlugin",
 			//"HeadMountedDisplay",
@@ -47,6 +47,6 @@ public class RobCogWeb : ModuleRules
 		
 		// THIRD PARTY
         //PublicIncludePaths.Add(Path.Combine(ThirdPartyPath, "RapidJson", "Includes"));
-        PublicIncludePaths.Add(Path.Combine(ThirdPartyPath, "RapidXml", "Includes"));
+       // PublicIncludePaths.Add(Path.Combine(ThirdPartyPath, "RapidXml", "Includes"));
 	}
 }
