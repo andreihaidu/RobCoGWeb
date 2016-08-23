@@ -177,7 +177,7 @@ void AMyCharacter::Tick( float DeltaTime )
 	//Behaviour for selected object in hand
 	else
 	{
-		//Turn of the highlight effect because we can't pick up with this hand.
+		//Turn off the highlight effect because we can't pick up with this hand.
 		if (HighlightedActor)
 		{
 			GetStaticMesh(HighlightedActor)->SetRenderCustomDepth(false);
@@ -321,19 +321,11 @@ void AMyCharacter::PickToInventory(AActor* CurrentObject)
 	{
 		RightHandSlot = CurrentObject;
 		RightHandRotator = RightHandSlot->GetActorRotation();
-
-		/*	DONE - via Blueprint
-		Add icon of the object in the inventory slot
-		*/
 	}
 	else
 	{
 		LeftHandSlot = CurrentObject;
 		LeftHandRotator = LeftHandSlot->GetActorRotation();
-
-		/*	DONE - via Blueprint
-		Add icon of the object in the inventory slot
-		*/
 	}
 
 	//Set collision to overlap other actors, we set up the GameTraceChannel1 to our custom overlapping collision.
@@ -507,8 +499,8 @@ void AMyCharacter::MoveItemY(const float Value)
 void AMyCharacter::UpdateTextBoxes()
 {
 	//Help text to display at the beginig of the game
-	//DisplayMessageLeft = TEXT("Use WASD for movement. \nTAB button to switch between which hand to use.");
-	//DisplayMessageRight = TEXT("");
+	DisplayMessageLeft = TEXT("Use WASD to move around the kitchen.\nYour first goal is to prepare the table \nso that one can eat dinner.");
+	DisplayMessageRight = TEXT("Remember that you can use BOTH your hands! \nUse TAB to switch between them!");
 
 	//if (HighlightedActor)
 	//{
