@@ -38,9 +38,9 @@ public:
 
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	
+
 	// Called every frame
-	virtual void Tick( float DeltaSeconds ) override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
@@ -62,11 +62,11 @@ public:
 
 	//String used for displaying help messages for the user
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	FString DisplayMessageLeft;
+		FString DisplayMessageLeft;
 
 	//String used for displaying help messages for the user
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	FString DisplayMessageRight;
+		FString DisplayMessageRight;
 
 	//Array to store all actors in the world; used to find which object is selected
 	TArray<AActor*> AllActors;
@@ -85,11 +85,11 @@ public:
 
 	//Pointer to the item held in the right hand
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	AActor* RightHandSlot;
+		AActor* RightHandSlot;
 
 	//Pointer to the item held in the left hand
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	AActor* LeftHandSlot;
+		AActor* LeftHandSlot;
 
 	//Parameters for the ray trace
 	FCollisionQueryParams TraceParams;
@@ -130,14 +130,21 @@ public:
 	//Integer to store the index of rotation axis
 	int RotationAxisIndex;
 
+	//List to hold all stackables from world
+	TSet<AActor*> AllStackableItems;
+
+	//Variable which holds stacked items when manipulated
+	TSet<AActor*> TwoHandSlot;
+
+
 protected:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
-	float BaseTurnRate;
+		float BaseTurnRate;
 
 	/** Base look up/down rate, in deg/sec. Other scaling may affect final rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
-	float BaseLookUpRate;
+		float BaseLookUpRate;
 
 	/** Handles movement of our character forward/backward */
 	void MoveForward(const float Value);
@@ -147,6 +154,9 @@ protected:
 
 	//Handles the input from the mouse
 	void Click();
+
+	//Method to pick up stack
+	void GrabWithTwoHands();
 
 	//Switches between which hand will perform the next action
 	void SwitchSelectedHand();
@@ -177,7 +187,13 @@ protected:
 
 	//Function called to update the tips which guide the player
 	void UpdateTextBoxes();
-	
+
+	//Function to place an item on top of surface or another object in the world
+	void PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface);
+
+	//Method used to get an arranged list of items which are stacked on top of eachother
+	TSet<AActor*> GetStack(AActor* ContainedItem);
+
 public:
 	/** Returns FirstPersonCameraComponent subobject **/
 	FORCEINLINE class UCameraComponent* GetMyCharacterCamera() const { return MyCharacterCamera; }
