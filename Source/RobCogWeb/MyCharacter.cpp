@@ -8,7 +8,7 @@
 // Sets default values
 AMyCharacter::AMyCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 	// Set this pawn to be controlled by the lowest-numbered player
@@ -44,8 +44,8 @@ AMyCharacter::AMyCharacter()
 	RightHandSlot = nullptr;
 
 	//Set the rotations to null
-	LeftHandRotator = FRotator(0.f, 0.f, 0.f);
-	RightHandRotator = FRotator(0.f, 0.f, 0.f);
+	LeftHandRotator = GetActorRotation();
+	RightHandRotator = GetActorRotation();
 
 	//By default our character will perfom actions with the right hand first
 	bRightHandSelected = true;
@@ -67,7 +67,7 @@ AMyCharacter::AMyCharacter()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	//Gets all actors in the world, used for identifying our drawers and setting their initial state to closed
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), AllActors);
 
@@ -90,10 +90,15 @@ void AMyCharacter::BeginPlay()
 			}
 		}
 		//Remember to tag items when adding them into the world
-		//Or CREATE a function which does that automatically
 		else if (ActorIt->ActorHasTag(FName(TEXT("Item"))))
 		{
 			ItemMap.Add(ActorIt, EItemType::GeneralItem);
+		}
+
+		//Populate the list of stackable items in world
+		if (ActorIt->ActorHasTag(FName(TEXT("Stackable"))))
+		{
+			AllStackableItems.Add(ActorIt);
 		}
 	}
 }
@@ -108,6 +113,110 @@ UStaticMeshComponent* AMyCharacter::GetStaticMesh(AActor* Actor)
 		}
 	}
 	return nullptr;
+}
+
+TSet<AActor*> AMyCharacter::GetStack(AActor* ContainedItem)
+{
+	TSet<AActor*> StackList;
+	StackList.Empty();
+
+	if (!ContainedItem->ActorHasTag(FName(TEXT("Stackable"))))
+	{
+		return StackList;
+	}
+
+	for (const auto Iterator : AllStackableItems)
+	{
+		if (Iterator->Tags == ContainedItem->Tags)
+		{
+			if ((ContainedItem->GetActorLocation().X - 2 < Iterator->GetActorLocation().X) &&
+				(Iterator->GetActorLocation().X < ContainedItem->GetActorLocation().X + 2) &&
+				(ContainedItem->GetActorLocation().Y - 2 < Iterator->GetActorLocation().Y) &&
+				(Iterator->GetActorLocation().Y< ContainedItem->GetActorLocation().Y + 2))
+			{
+				StackList.Add(Iterator);
+			}
+		}
+	}
+	bool swapped = true;
+	int j = 0;
+	AActor* tmp;
+	while (swapped) {
+		swapped = false;
+		j++;
+		for (int i = 0; i < StackList.Num() - j; i++) {
+			if (StackList[FSetElementId::FromInteger(i)]->GetActorLocation().Z > StackList[FSetElementId::FromInteger(i + 1)]->GetActorLocation().Z)
+			{
+				tmp = StackList[FSetElementId::FromInteger(i)];
+				StackList[FSetElementId::FromInteger(i)] = StackList[FSetElementId::FromInteger(i + 1)];
+				StackList[FSetElementId::FromInteger(i + 1)] = tmp;
+				swapped = true;
+			}
+		}
+	}
+	return StackList;
+}
+
+void AMyCharacter::GrabWithTwoHands()
+{
+	if (TwoHandSlot.Num() || !HitObject.GetActor()->ActorHasTag(FName(TEXT("Item"))))
+	{
+		return;
+	}
+
+	if (RightHandSlot || LeftHandSlot)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Can't pick up with both hands if they are not both empty!"));
+		return;
+	}
+
+	else if (HighlightedActor->ActorHasTag(FName(TEXT("Stackable"))))
+	{
+		for (auto Iterator : GetStack(HighlightedActor))
+		{
+
+			GetStaticMesh(Iterator)->SetEnableGravity(false);
+			GetStaticMesh(Iterator)->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+		TwoHandSlot = GetStack(HighlightedActor);
+		SelectedObject = HitObject.GetActor();
+	}
+}
+
+void AMyCharacter::PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface)
+{
+	FVector HMin, HMax;
+	HMax.Z = 0;
+	//Get the bounding limits for our actor to place
+	GetStaticMesh(ActorToPlace)->GetLocalBounds(Min, Max);
+
+	//Check if the surface is a static map or an item
+	if (HitSurface.GetActor()->ActorHasTag(FName(TEXT("Item"))))
+	{
+		GetStaticMesh(HitSurface.GetActor())->GetLocalBounds(HMin, HMax);
+	}
+	else
+	{
+		//Small offset to make sure objects are not colliding when we place them
+		HMax.Z = 0.2;
+	}
+
+	//Check if the items are stackable together, and if so place them acordingly (copy rotation and match positioning)
+	if (ActorToPlace->ActorHasTag(FName(TEXT("Stackable"))) && ActorToPlace->Tags == HitSurface.GetActor()->Tags)
+	{
+		GetStaticMesh(ActorToPlace)->SetWorldLocationAndRotation(HitSurface.GetActor()->GetActorLocation() + FVector(0.f, 0.f, HMax.Z - Min.Z), HitSurface.GetActor()->GetActorRotation());
+	}
+	else
+	{
+		GetStaticMesh(ActorToPlace)->SetWorldLocation(HitSurface.ImpactPoint + FVector(0.f, 0.f, HMax.Z) + HitSurface.Normal*((-Min) * GetStaticMesh(ActorToPlace)->GetComponentScale()));
+	}
+
+	//Reactivate the gravity and other properties which have been modified in order to permit manipulation
+	GetStaticMesh(ActorToPlace)->SetEnableGravity(true);
+	//Disable Rotation mode
+	bRotationModeAllowed = false;
+	//Reset rotation index to default 0
+	RotationAxisIndex = 0;
 }
 
 void AMyCharacter::OpenCloseAction(AActor* OpenableActor)
@@ -139,9 +248,9 @@ void AMyCharacter::OpenCloseAction(AActor* OpenableActor)
 }
 
 // Called every frame
-void AMyCharacter::Tick( float DeltaTime )
+void AMyCharacter::Tick(float DeltaTime)
 {
-	Super::Tick( DeltaTime );
+	Super::Tick(DeltaTime);
 
 	//Update tooltips
 	UpdateTextBoxes();
@@ -202,6 +311,25 @@ void AMyCharacter::Tick( float DeltaTime )
 		LeftHandSlot->SetActorRotation(LeftHandRotator + FRotator(0.f, GetActorRotation().Yaw, 0.f));
 		GetStaticMesh(LeftHandSlot)->SetWorldLocation(GetActorLocation() + FVector(20.f, 20.f, 20.f) * GetActorForwardVector() - FVector(LeftYPos, LeftYPos, LeftYPos) * GetActorRightVector() + FVector(0.f, 0.f, LeftZPos));
 	}
+
+	//Draw the stack held in hands if there is one
+	if (TwoHandSlot.Num())
+	{
+		float LastItemOldZ = 0;
+		float ZOffset = 0;
+		
+		for (AActor* StackItem : TwoHandSlot)
+		{
+			if (LastItemOldZ)
+			{
+				ZOffset += StackItem->GetActorLocation().Z - LastItemOldZ;
+			}
+			LastItemOldZ = StackItem->GetActorLocation().Z;
+
+			StackItem->SetActorRotation(FRotator(0.f, GetActorRotation().Yaw, 0.f));
+			GetStaticMesh(StackItem)->SetWorldLocation(GetActorLocation() + FVector(8.f, 8.f, 8.f) * GetActorForwardVector() + FVector(0.f, 0.f, 20.f + ZOffset));
+		}
+	}
 }
 
 // Called to bind functionality to input
@@ -232,6 +360,9 @@ void AMyCharacter::SetupPlayerInputComponent(class UInputComponent* InputCompone
 	//Input frome keyboard arrows
 	InputComponent->BindAxis("MoveItemZ", this, &AMyCharacter::MoveItemZ);
 	InputComponent->BindAxis("MoveItemY", this, &AMyCharacter::MoveItemY);
+
+	//Right mouse click which just calls the GrabWithTwoHandsMethod
+	InputComponent->BindAction("GrabWithTwoHands", IE_Pressed, this, &AMyCharacter::GrabWithTwoHands);
 }
 
 void AMyCharacter::MoveForward(const float Value)
@@ -265,6 +396,11 @@ void AMyCharacter::MoveRight(const float Value)
 
 void AMyCharacter::SwitchSelectedHand()
 {
+	if (TwoHandSlot.Num())
+	{
+		return;
+	}
+
 	bRightHandSelected = !bRightHandSelected;
 	if (bRightHandSelected)
 	{
@@ -283,8 +419,13 @@ void AMyCharacter::SwitchSelectedHand()
 
 void AMyCharacter::Click()
 {
+	//Exit function call if invalid apelation
+	if (!HitObject.IsValidBlockingHit() || HitObject.Distance > MaxGraspLength)
+	{
+		return;
+	}
 	//Behaviour when we want to drop the item currently held in hand
-	if (SelectedObject && HitObject.Distance < MaxGraspLength)
+	if (SelectedObject)
 	{
 		//Drops our currently selected item on the surface clicked on
 		DropFromInventory(SelectedObject, HitObject);
@@ -316,50 +457,81 @@ void AMyCharacter::Click()
 
 void AMyCharacter::PickToInventory(AActor* CurrentObject)
 {
+	//Get the stack which contains this item in order to grab the topmost item only
+	TSet<AActor*> LocalStackVariable = GetStack(CurrentObject);
+	if (LocalStackVariable.Num() > 1)
+	{
+		CurrentObject = LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num() - 1)];
+	}
+
+	//Change the referenced of the selected object to the one we actually manipulate
+	SelectedObject = CurrentObject;
+	
 	//Add a reference and an icon of the object in the correct item slot (left or right hand) and save the value of our rotator
 	if (bRightHandSelected)
 	{
 		RightHandSlot = CurrentObject;
-		RightHandRotator = RightHandSlot->GetActorRotation();
+		RightHandRotator = RightHandSlot->GetActorRotation() - GetActorRotation();
 	}
 	else
 	{
 		LeftHandSlot = CurrentObject;
-		LeftHandRotator = LeftHandSlot->GetActorRotation();
+		LeftHandRotator = LeftHandSlot->GetActorRotation() - GetActorRotation();
 	}
 
-	//Set collision to overlap other actors, we set up the GameTraceChannel1 to our custom overlapping collision.
-	//GetStaticMesh(CurrentObject)->SetCollisionObjectType(ECollisionChannel::ECC_GameTraceChannel1);
 	//Deactivate the gravity
 	GetStaticMesh(CurrentObject)->SetEnableGravity(false);
-
 	//Ignore clicking on item if held in hand
 	TraceParams.AddIgnoredComponent(GetStaticMesh(CurrentObject));
 }
 
 void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurface)
 {
-	if (HitSurface.Distance > MaxGraspLength)
+	if (!HitSurface.IsValidBlockingHit() || HitSurface.Distance > MaxGraspLength)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("You need to get closer in order to do that!"));
 		return;
 	}
-	//Find the bounding limits of the currently selected object 
-	GetStaticMesh(CurrentObject)->GetLocalBounds(Min, Max);
 
-	//Method to move the object to our newly selected position
-	GetStaticMesh(CurrentObject)->SetWorldLocation(HitSurface.ImpactPoint + HitSurface.Normal*((-Min) * GetStaticMesh(CurrentObject)->GetComponentScale()));
+	//Case in which we are holding a stack
+	if (TwoHandSlot.Num())
+	{
+		bool bFirstLoop = true;
+		FVector WorldPositionChange = FVector(0.f, 0.f, 0.f);
+
+		for (auto Iterator : TwoHandSlot)
+		{
+			GetStaticMesh(Iterator)->SetEnableGravity(true);
+			GetStaticMesh(Iterator)->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+			if (!bFirstLoop)
+			{
+				GetStaticMesh(Iterator)->SetWorldLocation(Iterator->GetActorLocation() - WorldPositionChange);
+			}
+
+			else
+			{
+				WorldPositionChange = Iterator->GetActorLocation();
+				PlaceOnTop(Iterator, HitSurface);
+				WorldPositionChange = WorldPositionChange - Iterator->GetActorLocation();
+				bFirstLoop = false;
+			}
+		}
+		TwoHandSlot.Empty();
+		SelectedObject = nullptr;
+		return;
+	}
+
+	PlaceOnTop(CurrentObject, HitSurface);
 
 	//Reset ignored parameters
 	TraceParams.ClearIgnoredComponents();
-
 
 	//Remove the reference to the object because we are not holding it any more
 	if (bRightHandSelected)
 	{
 		RightHandSlot = nullptr;
-		/*	DONE via blueprints
-		Remove icon of the object in the inventory slot
-		*/
+
 		//Reset the positioning vector back to default state
 		RightZPos = 30.f;
 		RightYPos = 20;
@@ -373,9 +545,6 @@ void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurfac
 	else
 	{
 		LeftHandSlot = nullptr;
-		/*	DONE via blueprints
-		Remove icon of the object in the inventory slot
-		*/
 		//Reset the positioning vector back to default state
 		LeftZPos = 30.f;
 		LeftYPos = 20;
@@ -387,18 +556,8 @@ void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurfac
 		}
 	}
 
-	//Set collision back to physics body
-	//GetStaticMesh(CurrentObject)->SetCollisionObjectType(ECollisionChannel::ECC_PhysicsBody);
-	//Reactivate the gravity
-	GetStaticMesh(CurrentObject)->SetEnableGravity(true);
-
 	//Remove the reference because we just dropped the item that was selected
 	SelectedObject = nullptr;
-
-	//Disable Rotation mode
-	bRotationModeAllowed = false;
-	//Reset rotation index to default 0
-	RotationAxisIndex = 0;
 }
 
 void AMyCharacter::SwitchRotationAxis()
@@ -538,4 +697,32 @@ void AMyCharacter::UpdateTextBoxes()
 	//	DisplayMessage = TEXT("Rotate about X axis. R to switch\nClick to drop item");
 	//	break;
 	//}
+
 }
+
+////Method to place items from hand
+//void AMyCharacter::PlaceOnTop(AActor* DropItem, FHitResult WhereToDrop)
+//{
+//	//Section for placing items on top of surfaces --> done in the current PickToHand
+//
+//	//Section for stacking items (on top of one another, having the stackable property)
+//}
+//
+////Method to pickup items from stacks
+//void AMyCharacter::GrabFromStack()
+//{
+//	//Picks upmost item from stack, regardless on where it is clicked on
+//}
+//
+////Method to pick up stacks as a whole (uses both hands)
+//void AMyCharacter::PickUpStack()
+//{
+//
+//}
+
+//Organise items which are stackables in arrays (try parenting one to another to see if results are satisfying)
+//primitiveComponent :: WeldTo method!
+
+//IDEAS;
+// add stackable property to items such as plates, and make the character be able to pick such stacks, 
+//but he requires both hands to do so. Maybe using the shift key to pick up a stack.
