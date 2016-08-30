@@ -763,9 +763,3 @@ void AMyCharacter::UpdateTextBoxes()
 //
 //}
 
-//Organise items which are stackables in arrays (try parenting one to another to see if results are satisfying)
-//primitiveComponent :: WeldTo method!
-
-//IDEAS;
-// add stackable property to items such as plates, and make the character be able to pick such stacks, 
-//but he requires both hands to do so. Maybe using the shift key to pick up a stack.
