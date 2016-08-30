@@ -61,6 +61,9 @@ AMyCharacter::AMyCharacter()
 	LeftZPos = 30.f;
 	RightYPos = 20;
 	LeftYPos = 20;
+
+	//Default value for how many items can our character pick at once
+	StackGrabLimit = 4;
 }
 
 // Called when the game starts or when spawned
@@ -103,7 +106,7 @@ void AMyCharacter::BeginPlay()
 	}
 }
 
-UStaticMeshComponent* AMyCharacter::GetStaticMesh(AActor* Actor)
+UStaticMeshComponent* AMyCharacter::GetStaticMesh(const AActor* Actor)
 {
 	for (auto Component : Actor->GetComponents())
 	{
@@ -170,16 +173,29 @@ void AMyCharacter::GrabWithTwoHands()
 		return;
 	}
 
-	else if (HighlightedActor->ActorHasTag(FName(TEXT("Stackable"))))
+	TSet<AActor*> LocalStackVariable = GetStack(HighlightedActor);
+	TSet<AActor*> ReturnStack;
+	if (HasAnyOnTop(LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num() - 1)]))
 	{
-		for (auto Iterator : GetStack(HighlightedActor))
+		UE_LOG(LogTemp, Warning, TEXT("You can't do that because it has something on it!"));
+		return;
+	}
+	if (HighlightedActor->ActorHasTag(FName(TEXT("Stackable"))))
+	{
+		int FirstIndex = 0;
+		if (LocalStackVariable.Num() > StackGrabLimit)
 		{
-
-			GetStaticMesh(Iterator)->SetEnableGravity(false);
-			GetStaticMesh(Iterator)->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			FirstIndex = LocalStackVariable.Num() - StackGrabLimit;
 		}
-		TwoHandSlot = GetStack(HighlightedActor);
-		SelectedObject = HitObject.GetActor();
+
+		for (int i = FirstIndex; i < LocalStackVariable.Num(); i++)
+		{
+			GetStaticMesh(LocalStackVariable[FSetElementId::FromInteger(i)])->SetEnableGravity(false);
+			GetStaticMesh(LocalStackVariable[FSetElementId::FromInteger(i)])->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			ReturnStack.Add(LocalStackVariable[FSetElementId::FromInteger(i)]);
+		}
+		TwoHandSlot = ReturnStack;
+		SelectedObject = LocalStackVariable[FSetElementId::FromInteger(FirstIndex)];
 	}
 }
 
@@ -251,9 +267,6 @@ void AMyCharacter::OpenCloseAction(AActor* OpenableActor)
 void AMyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
-	//Update tooltips
-	UpdateTextBoxes();
 
 	//Draw a straight line in front of our character
 	Start = MyCharacterCamera->GetComponentLocation();
@@ -437,9 +450,8 @@ void AMyCharacter::Click()
 		//Section for items that can be picked up and moved around
 		if (ItemMap.Contains(HighlightedActor))
 		{
-			//Picks up the item selected
-			SelectedObject = HighlightedActor;
-			PickToInventory(SelectedObject);
+			//Picks up the focused item
+			PickToInventory(HighlightedActor);
 		}
 
 		//Section for openable actors
@@ -457,12 +469,15 @@ void AMyCharacter::Click()
 
 void AMyCharacter::PickToInventory(AActor* CurrentObject)
 {
+	//Check if item is pickable (doesn't have any other on top of it)
+	if (HasAnyOnTop(CurrentObject))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("You can't do that because it has something on it!"));
+		return;
+	}
+
 	//Get the stack which contains this item in order to grab the topmost item only
 	TSet<AActor*> LocalStackVariable = GetStack(CurrentObject);
-	if (LocalStackVariable.Num() > 1)
-	{
-		CurrentObject = LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num() - 1)];
-	}
 
 	//Change the referenced of the selected object to the one we actually manipulate
 	SelectedObject = CurrentObject;
@@ -655,6 +670,34 @@ void AMyCharacter::MoveItemY(const float Value)
 	}
 }
 
+bool AMyCharacter::HasAnyOnTop(const AActor* CheckActor)
+{
+	GetStaticMesh(CheckActor)->GetLocalBounds(Min, Max);
+	FVector LowBound = CheckActor->GetActorLocation() + Min;
+	FVector HighBound = CheckActor->GetActorLocation() + Max;
+	FVector HMin, HMax;
+
+	//Loop through the list of items and check if it's location is on top of our item of interest
+	for (const auto Item : ItemMap)
+	{
+		FVector IteratorLocation = Item.Key->GetActorLocation();
+
+		if (Item.Key != CheckActor &&
+			(LowBound.X < IteratorLocation.X && HighBound.X > IteratorLocation.X) &&
+			(LowBound.Y < IteratorLocation.Y && HighBound.Y > IteratorLocation.Y) &&
+			(CheckActor->GetActorLocation().Z + Min.Z< IteratorLocation.Z && HighBound.Z + 15 > IteratorLocation.Z))
+		{
+			GetStaticMesh(Item.Key)->GetLocalBounds(HMin, HMax);
+			if (IteratorLocation.Z + HMin.Z > CheckActor->GetActorLocation().Z + Min.Z)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("This one has %s on top of it!"), *(Item.Key->GetName()));
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 void AMyCharacter::UpdateTextBoxes()
 {
 	//Help text to display at the beginig of the game
@@ -720,9 +763,3 @@ void AMyCharacter::UpdateTextBoxes()
 //
 //}
 
-//Organise items which are stackables in arrays (try parenting one to another to see if results are satisfying)
-//primitiveComponent :: WeldTo method!
-
-//IDEAS;
-// add stackable property to items such as plates, and make the character be able to pick such stacks, 
-//but he requires both hands to do so. Maybe using the shift key to pick up a stack.

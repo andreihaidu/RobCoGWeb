@@ -136,6 +136,9 @@ public:
 	//Variable which holds stacked items when manipulated
 	TSet<AActor*> TwoHandSlot;
 
+	//Limit of items that can be picked up as a stack at once
+	int StackGrabLimit;
+
 
 protected:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
@@ -162,7 +165,7 @@ protected:
 	void SwitchSelectedHand();
 
 	//Function which returns the static mesh component of the selected object; NOT efficient --> Look for alternatives
-	UStaticMeshComponent* GetStaticMesh(AActor* Actor);
+	UStaticMeshComponent* GetStaticMesh(const AActor* Actor);
 
 	//Function to pick an item in one of our hands
 	void PickToInventory(AActor* CurrentObject);
@@ -193,6 +196,9 @@ protected:
 
 	//Method used to get an arranged list of items which are stacked on top of eachother
 	TSet<AActor*> GetStack(AActor* ContainedItem);
+
+	//Method to check if an item is pickable (that it does not have other item on top of it)
+	bool HasAnyOnTop(const AActor* CheckActor);
 
 public:
 	/** Returns FirstPersonCameraComponent subobject **/
