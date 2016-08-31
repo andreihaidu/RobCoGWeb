@@ -62,17 +62,20 @@ public:
 
 	//String used for displaying help messages for the user
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-		FString DisplayMessageLeft;
+	FString DisplayMessageLeft;
 
 	//String used for displaying help messages for the user
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-		FString DisplayMessageRight;
+	FString DisplayMessageRight;
 
 	//Array to store all actors in the world; used to find which object is selected
 	TArray<AActor*> AllActors;
 
 	//TMap which keeps the open/closed state for our island drawers
 	TMap<AActor*, EAssetState> AssetStateMap;
+
+	//Variable to store the current level, used for changing displayed messages    --> Maybe move the whole logic to the GameMode class
+	int CurrentLevelInteger;
 
 	//TMap which keeps the interractive items from the kitchen
 	TMap<AActor*, EItemType> ItemMap;
@@ -187,6 +190,10 @@ protected:
 
 	//Function to move the selected object up/down
 	void MoveItemZ(const float Value);
+
+	//Function to pause the game
+	UFUNCTION(BlueprintCallable, Category = "Interface")
+	void Pause();
 
 	//Function called to update the tips which guide the player
 	void UpdateTextBoxes();
