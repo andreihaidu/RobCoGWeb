@@ -77,8 +77,11 @@ void AMyCharacter::BeginPlay()
 	//Loop that checks if current object matches our drawer
 	for (const auto ActorIt : AllActors)
 	{
-		//Command used for determining the exact name of an actor. Only useful when designing.
-		//UE_LOG(LogTemp, Warning, TEXT("Actor name: %s"), *ActorIt->GetName());
+		//Set default stencil value (for blue outline effect)
+		if (GetStaticMesh(ActorIt))
+		{
+			GetStaticMesh(ActorIt)->SetCustomDepthStencilValue(1);
+		}
 
 		//Finds the actors for the Handles, used to set the initial state of our drawers to closed 
 		if (ActorIt->GetName().Contains("Handle"))
@@ -195,7 +198,8 @@ void AMyCharacter::GrabWithTwoHands()
 			ReturnStack.Add(LocalStackVariable[FSetElementId::FromInteger(i)]);
 		}
 		TwoHandSlot = ReturnStack;
-		SelectedObject = LocalStackVariable[FSetElementId::FromInteger(FirstIndex)];
+		SelectedObject = LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num()-1)];
+		GetStaticMesh(SelectedObject)->SetCustomDepthStencilValue(2);
 	}
 }
 
@@ -229,6 +233,7 @@ void AMyCharacter::PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface)
 
 	//Reactivate the gravity and other properties which have been modified in order to permit manipulation
 	GetStaticMesh(ActorToPlace)->SetEnableGravity(true);
+	GetStaticMesh(ActorToPlace)->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	//Disable Rotation mode
 	bRotationModeAllowed = false;
 	//Reset rotation index to default 0
@@ -268,6 +273,8 @@ void AMyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	UpdateTextBoxes();
+
 	//Draw a straight line in front of our character
 	Start = MyCharacterCamera->GetComponentLocation();
 	End = Start + MyCharacterCamera->GetForwardVector()*MaxGraspLength;
@@ -300,7 +307,7 @@ void AMyCharacter::Tick(float DeltaTime)
 	else
 	{
 		//Turn off the highlight effect because we can't pick up with this hand.
-		if (HighlightedActor)
+		if (HighlightedActor && HighlightedActor)
 		{
 			GetStaticMesh(HighlightedActor)->SetRenderCustomDepth(false);
 			HighlightedActor = nullptr;
@@ -316,6 +323,16 @@ void AMyCharacter::Tick(float DeltaTime)
 	{
 		RightHandSlot->SetActorRotation(RightHandRotator + FRotator(0.f, GetActorRotation().Yaw, 0.f));
 		GetStaticMesh(RightHandSlot)->SetWorldLocation(GetActorLocation() + FVector(20.f, 20.f, 20.f) * GetActorForwardVector() + FVector(RightYPos, RightYPos, RightYPos) * GetActorRightVector() + FVector(0.f, 0.f, RightZPos));
+
+		//Add highlight if it is selected
+		if (SelectedObject == RightHandSlot)
+		{
+			GetStaticMesh(RightHandSlot)->SetRenderCustomDepth(true);
+		}
+		else
+		{
+			GetStaticMesh(RightHandSlot)->SetRenderCustomDepth(false);
+		}
 	}
 
 	//Draw object from the left hand
@@ -323,6 +340,16 @@ void AMyCharacter::Tick(float DeltaTime)
 	{
 		LeftHandSlot->SetActorRotation(LeftHandRotator + FRotator(0.f, GetActorRotation().Yaw, 0.f));
 		GetStaticMesh(LeftHandSlot)->SetWorldLocation(GetActorLocation() + FVector(20.f, 20.f, 20.f) * GetActorForwardVector() - FVector(LeftYPos, LeftYPos, LeftYPos) * GetActorRightVector() + FVector(0.f, 0.f, LeftZPos));
+
+		//Add highlight if it is selected
+		if (SelectedObject == LeftHandSlot)
+		{
+			GetStaticMesh(LeftHandSlot)->SetRenderCustomDepth(true);
+		}
+		else
+		{
+			GetStaticMesh(LeftHandSlot)->SetRenderCustomDepth(false);
+		}
 	}
 
 	//Draw the stack held in hands if there is one
@@ -341,6 +368,15 @@ void AMyCharacter::Tick(float DeltaTime)
 
 			StackItem->SetActorRotation(FRotator(0.f, GetActorRotation().Yaw, 0.f));
 			GetStaticMesh(StackItem)->SetWorldLocation(GetActorLocation() + FVector(8.f, 8.f, 8.f) * GetActorForwardVector() + FVector(0.f, 0.f, 20.f + ZOffset));
+		}
+		//Add highlight if it is selected
+		if (TwoHandSlot.Contains(SelectedObject))
+		{
+			GetStaticMesh(SelectedObject)->SetRenderCustomDepth(true);
+		}
+		else
+		{
+			GetStaticMesh(SelectedObject)->SetRenderCustomDepth(false);
 		}
 	}
 }
@@ -482,6 +518,9 @@ void AMyCharacter::PickToInventory(AActor* CurrentObject)
 	//Change the referenced of the selected object to the one we actually manipulate
 	SelectedObject = CurrentObject;
 	
+	//Change the outline collor effect to orange
+	GetStaticMesh(SelectedObject)->SetCustomDepthStencilValue(2);
+	
 	//Add a reference and an icon of the object in the correct item slot (left or right hand) and save the value of our rotator
 	if (bRightHandSelected)
 	{
@@ -496,6 +535,7 @@ void AMyCharacter::PickToInventory(AActor* CurrentObject)
 
 	//Deactivate the gravity
 	GetStaticMesh(CurrentObject)->SetEnableGravity(false);
+	GetStaticMesh(CurrentObject)->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	//Ignore clicking on item if held in hand
 	TraceParams.AddIgnoredComponent(GetStaticMesh(CurrentObject));
 }
@@ -533,6 +573,7 @@ void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurfac
 			}
 		}
 		TwoHandSlot.Empty();
+		GetStaticMesh(SelectedObject)->SetCustomDepthStencilValue(1);
 		SelectedObject = nullptr;
 		return;
 	}
@@ -571,6 +612,8 @@ void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurfac
 		}
 	}
 
+	//Reset outline color to blue
+	GetStaticMesh(SelectedObject)->SetCustomDepthStencilValue(1);
 	//Remove the reference because we just dropped the item that was selected
 	SelectedObject = nullptr;
 }
@@ -701,65 +744,39 @@ bool AMyCharacter::HasAnyOnTop(const AActor* CheckActor)
 void AMyCharacter::UpdateTextBoxes()
 {
 	//Help text to display at the beginig of the game
-	DisplayMessageLeft = TEXT("Use WASD to move around the kitchen.\nYour first goal is to prepare the table \nso that one can eat dinner.");
+	DisplayMessageLeft = TEXT("Use WASD to move around the kitchen.\nFeel free to look anywhere and try anything!");
 	DisplayMessageRight = TEXT("Remember that you can use BOTH your hands! \nUse TAB to switch between them!");
 
-	//if (HighlightedActor)
-	//{
-	//	//Print a message to the screen
-	//	//DisplayMessage = TEXT("Press click to interact \n(Grab or Open/Close Action)");
-	//}
-	//else
-	//{
-	//	//Reset text to empty
-	//	//DisplayMessage = TEXT("Use WASD for movement. \nTAB button to switch between which hand to use.");
-	//}
+	//Display message when focused on an interractive item
+	if (HighlightedActor)
+	{
+		DisplayMessageLeft = TEXT("You can interract with items.\nPress click to see what happens!");
+		
+		//If item is in a stack, tell the user how he can manipulate it.
+		if (GetStack(HighlightedActor).Num() > 1)
+		{
+			DisplayMessageLeft = TEXT("You can pick up stacked items togheter.\nPress right click to try that out!");
+		}
+	}
 
-	////DisplayMessage2 = TEXT("");
+	//Rotation and positioning adjustment messages
+	if (SelectedObject && !TwoHandSlot.Num())
+	{
+		DisplayMessageLeft = TEXT("You can adjust the position with arrow keys.\nYou can press 'R' to enter rotation mode!");
+		if (RotationAxisIndex)
+		{
+			DisplayMessageRight = TEXT("Press 'R' to switch between axis.\nUse the mouse wheel to adjust rotation.");
+		}
+	}
 
-	////if hand is empty
-
-	//if (!RotationAxisIndex)
-	//{
-	//	//Display message to tell user that he can rotate an object
-	//	//DisplayMessage = TEXT("Press R for rotation mode using the mouse wheel\nClick to drop item");
-	//	//DisplayMessage2 = TEXT("You can use the keyboard arrows\nto adjust the position of item in hand");
-	//}
-
-	//Text When rotating object
-	////Update display text based on Rotation Axis Index
-	//switch (RotationAxisIndex)
-	//{
-	//case 1:
-	//	DisplayMessage = TEXT("Rotate about Z axis. R to switch\nClick to drop item");
-	//	break;
-	//case 2:
-	//	DisplayMessage = TEXT("Rotate about Y axis. R to switch\nClick to drop item");
-	//	break;
-	//case 3:
-	//	DisplayMessage = TEXT("Rotate about X axis. R to switch\nClick to drop item");
-	//	break;
-	//}
-
+	//Message when the user holds stacks
+	if (TwoHandSlot.Num())
+	{
+		DisplayMessageLeft = TEXT("You can create more stacks by placing \nthe same type of items on top of eachother");
+		DisplayMessageRight = TEXT("We don't want to overwork the robot.\nYou can only pick a limited\nnumber of items at once!");
+	}
 }
 
-////Method to place items from hand
-//void AMyCharacter::PlaceOnTop(AActor* DropItem, FHitResult WhereToDrop)
-//{
-//	//Section for placing items on top of surfaces --> done in the current PickToHand
-//
-//	//Section for stacking items (on top of one another, having the stackable property)
-//}
-//
-////Method to pickup items from stacks
-//void AMyCharacter::GrabFromStack()
-//{
-//	//Picks upmost item from stack, regardless on where it is clicked on
-//}
-//
-////Method to pick up stacks as a whole (uses both hands)
-//void AMyCharacter::PickUpStack()
-//{
-//
-//}
+
+
 
