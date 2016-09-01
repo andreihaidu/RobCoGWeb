@@ -68,6 +68,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 	FString DisplayMessageRight;
 
+	//String used for displaying help messages for the user
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FString PopUpMessage;
+
 	//Array to store all actors in the world; used to find which object is selected
 	TArray<AActor*> AllActors;
 
