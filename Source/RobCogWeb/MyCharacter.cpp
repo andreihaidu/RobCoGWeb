@@ -183,6 +183,7 @@ void AMyCharacter::GrabWithTwoHands()
 	//Exit function call if invalid apelation
 	if (!HitObject.IsValidBlockingHit() || HitObject.Distance > MaxGraspLength || !HighlightedActor)
 	{
+		PopUpMessage = TEXT("Action not valid!"); 
 		return;                                                                                                             //---> display message
 	}
 
@@ -194,6 +195,7 @@ void AMyCharacter::GrabWithTwoHands()
 	if (RightHandSlot || LeftHandSlot)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Can't pick up with both hands if they are not both empty!"));                          //---> display message
+		PopUpMessage = TEXT("Can't pick up with two hands\nif they are not both empty!");
 		return;
 	}
 
@@ -203,6 +205,7 @@ void AMyCharacter::GrabWithTwoHands()
 	if (HasAnyOnTop(LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num() - 1)]))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("You can't do that because it has something on it!"));                                  //---> display message
+		PopUpMessage = TEXT("Make sure it does not have anything\non top before picking!");
 		return;
 	}
 	if (HighlightedActor->ActorHasTag(FName(TEXT("Stackable"))))
@@ -503,7 +506,8 @@ void AMyCharacter::Click()
 	//Exit function call if invalid apelation
 	if (!HitObject.IsValidBlockingHit() || HitObject.Distance > MaxGraspLength)
 	{
-		return;                                                                                                                         //---> display message
+		PopUpMessage = TEXT("Action not valid!");																	//---> display message
+		return;                                                                                                                    
 	}
 	//Behaviour when we want to drop the item currently held in hand
 	if (SelectedObject)
@@ -536,6 +540,7 @@ void AMyCharacter::PickToInventory(AActor* CurrentObject)
 	if (HasAnyOnTop(CurrentObject))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("You can't do that because it has something on it!"));                                             //---> display message           
+		PopUpMessage = TEXT("Make sure it does not have anything\non top before picking!");
 		return;
 	}
 
@@ -569,9 +574,15 @@ void AMyCharacter::PickToInventory(AActor* CurrentObject)
 
 void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurface)
 {
-	if (!HitSurface.IsValidBlockingHit() || HitSurface.Distance > MaxGraspLength)
+	if (!HitSurface.IsValidBlockingHit())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("You need to get closer in order to do that!"));                                                //---> display message                                    
+		UE_LOG(LogTemp, Warning, TEXT("You need to get closer\nin order to do that!"));                                                //---> display message              
+		PopUpMessage = TEXT("Action not valid!");
+		return;
+	}
+	if (HitSurface.Distance > MaxGraspLength)
+	{
+		PopUpMessage = TEXT("You need to get closer!");
 		return;
 	}
 
@@ -779,7 +790,7 @@ void AMyCharacter::UpdateTextBoxes()
 	case 1 :
 		//Help text to display at the beginig of the game
 		DisplayMessageLeft = TEXT("Use W,A,S,D keys to move around the kitchen.\nFeel free to look anywhere and try anything!");
-		DisplayMessageRight = TEXT("Remember that you can use BOTH your hands! \nUse TAB to switch between them!");
+		DisplayMessageRight = TEXT("You can use BOTH your hands! \nUse TAB to switch between them!");
 
 		//Display message when focused on an interractive item
 		if (HighlightedActor)
@@ -812,13 +823,13 @@ void AMyCharacter::UpdateTextBoxes()
 		break;
 
 	case 2 :
-		DisplayMessageLeft = TEXT("Please set up the table for breakfast.\nOne person will eat.");
+		//DisplayMessageLeft = TEXT("Please set up the table for breakfast.\nOne person will eat.");
 		DisplayMessageRight = TEXT("You can press 'P' at any time\nto check the hotkeys.");
 
 		break;
 
 	case 3 :
-		DisplayMessageLeft = TEXT("Please clean up the kitchen.\nRemember, you can do it however you feel!");
+		//DisplayMessageLeft = TEXT("Please clean up the kitchen.\nRemember, you can do it however you feel!");
 		DisplayMessageRight = TEXT("You can press 'P' at any time\nto check the hotkeys.");
 
 		break;
