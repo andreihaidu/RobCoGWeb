@@ -72,6 +72,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FString PopUpMessage;
 
+	//Some variables to store pop up messages
+	FString OneHandOcupied;
+	FString SmthOnTop;
+	FString ActionNotValid;
+	FString GetCloser;
+
 	//Array to store all actors in the world; used to find which object is selected
 	TArray<AActor*> AllActors;
 
@@ -198,9 +204,6 @@ protected:
 	//Function to pause the game
 	UFUNCTION(BlueprintCallable, Category = "Interface")
 	void Pause();
-
-	//Function called to update the tips which guide the player
-	void UpdateTextBoxes();
 
 	//Function to place an item on top of surface or another object in the world
 	void PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface);
