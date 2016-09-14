@@ -43,11 +43,11 @@ AMyCharacter::AMyCharacter()
 	LeftHandSlot = nullptr;
 	RightHandSlot = nullptr;
 
-	//Set the rotations to null
+	//Set the rotations to character's
 	LeftHandRotator = GetActorRotation();
 	RightHandRotator = GetActorRotation();
 
-	//By default our character will perfom actions with the right hand first
+	//By default our character will perfom actions with the right hand 
 	bRightHandSelected = true;
 
 	//At the begining we don't hold an item which can be rotated
@@ -64,12 +64,6 @@ AMyCharacter::AMyCharacter()
 
 	//Default value for how many items can our character pick at once
 	StackGrabLimit = 4;
-
-	//PopUp text messages
-	OneHandOcupied = FString(TEXT("Can't pick up with two hands\nif they are not both empty!"));
-	SmthOnTop = FString(TEXT("Make sure it does not have anything\non top before picking!"));
-	ActionNotValid = FString(TEXT("Action not valid!"));
-	GetCloser = FString(TEXT("You need to get closer!"));
 }
 
 // Called when the game starts or when spawned
@@ -79,21 +73,6 @@ void AMyCharacter::BeginPlay()
 
 	//Gets all actors in the world, used for identifying our drawers and setting their initial state to closed
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), AllActors);
-
-	FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
-
-	if (LevelName == TEXT("TutorialLevel"))
-	{
-		CurrentLevelInteger = 1;
-	}
-	else if (LevelName == TEXT("BreakfastLevel"))
-	{
-		CurrentLevelInteger = 2;
-	}
-	else if (LevelName == TEXT("CleaningLevel"))
-	{
-		CurrentLevelInteger = 3;
-	}
 
 	//Loop that checks if current object matches our drawer
 	for (const auto ActorIt : AllActors)
@@ -186,34 +165,47 @@ TSet<AActor*> AMyCharacter::GetStack(AActor* ContainedItem)
 
 void AMyCharacter::GrabWithTwoHands()
 {
-	//Exit function call if invalid apelation
-	if (!HitObject.IsValidBlockingHit() || HitObject.Distance > MaxGraspLength || !HighlightedActor)
-	{
-		PopUpMessage = ActionNotValid;
-		return;                                                                                                             //---> display message
-	}
+	/**
+		Section to treat unacceptable function calls
+	*/
 
-	if (TwoHandSlot.Num() || !HitObject.GetActor()->ActorHasTag(FName(TEXT("Item"))))
+	//If something is allready held in hands
+	if (TwoHandSlot.Num() || LeftHandSlot || RightHandSlot)
 	{
+		PopUp.Broadcast(FString(TEXT("Allready holding something!")));
 		return;
 	}
 
-	if (RightHandSlot || LeftHandSlot)
+	//If no object is blocking the hit or no actor is highlighted
+	if (!HitObject.IsValidBlockingHit() || !HighlightedActor)
 	{
-		//UE_LOG(LogTemp, Warning, TEXT("Can't pick up with both hands if they are not both empty!"));                          //---> display message
-		PopUpMessage = OneHandOcupied;
+		//PopUpMessage = ActionNotValid;
+		PopUp.Broadcast(FString(TEXT("Action not valid!")));
+		return;                                                                                                           
+	}
+
+	//If highlighted actor is not pickable
+	if (!HitObject.GetActor()->ActorHasTag(FName(TEXT("Stackable"))))
+	{
+		PopUp.Broadcast(FString(TEXT("Can't pick that with two hands")));
 		return;
 	}
 
+	if (HitObject.Distance > MaxGraspLength)
+	{
+		PopUp.Broadcast(FString(TEXT("You need to get closer!")));
+		return;
+	}
 
 	TSet<AActor*> LocalStackVariable = GetStack(HighlightedActor);
 	TSet<AActor*> ReturnStack;
+
 	if (HasAnyOnTop(LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num() - 1)]))
 	{
-		//UE_LOG(LogTemp, Warning, TEXT("You can't do that because it has something on it!"));                                  //---> display message
-		PopUpMessage = SmthOnTop;
+		PopUp.Broadcast(FString(TEXT("Make sure no item is on top!")));
 		return;
 	}
+
 	if (HighlightedActor->ActorHasTag(FName(TEXT("Stackable"))))
 	{
 		int FirstIndex = 0;
@@ -236,8 +228,6 @@ void AMyCharacter::GrabWithTwoHands()
 
 void AMyCharacter::PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface)
 {
-	//If surface invalid or too far away																		              //---> display message
-
 	FVector HMin, HMax;
 
 	//Get the bounding limits for our actor to place
@@ -264,6 +254,10 @@ void AMyCharacter::PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface)
 		GetStaticMesh(ActorToPlace)->SetWorldLocation(HitSurface.ImpactPoint + FVector(0.f, 0.f, HMax.Z) + HitSurface.Normal*((-Min) * GetStaticMesh(ActorToPlace)->GetComponentScale()));
 	}
 
+	while (GetStaticMesh(ActorToPlace)->IsOverlappingActor(HitObject.GetActor()))
+	{
+		GetStaticMesh(ActorToPlace)->AddLocalOffset(FVector(0.f, 0.f, 0.1f));
+	}
 	//Reactivate the gravity and other properties which have been modified in order to permit manipulation
 	GetStaticMesh(ActorToPlace)->SetEnableGravity(true);
 	GetStaticMesh(ActorToPlace)->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -446,6 +440,12 @@ void AMyCharacter::SetupPlayerInputComponent(class UInputComponent* InputCompone
 
 	//Pause game
 	InputComponent->BindAction("Pause", IE_Pressed, this, &AMyCharacter::Pause);
+
+	//Submit progress and end the game
+	InputComponent->BindAction("Submit", IE_Pressed, this, &AMyCharacter::Submit);
+
+	//Return to playing 
+	InputComponent->BindAction("ReturnToPlay", IE_Pressed, this, &AMyCharacter::ReturnToPlay);
 }
 
 void AMyCharacter::MoveForward(const float Value)
@@ -488,12 +488,12 @@ void AMyCharacter::SwitchSelectedHand()
 	if (bRightHandSelected)
 	{
 		SelectedObject = RightHandSlot;
-		//UE_LOG(LogTemp, Warning, TEXT("Our character will perform the next action with his RIGHT hand"));					    //---> display message
+		PopUp.Broadcast(FString(TEXT("Performing action with RIGHT hand!")));
 	}
 	else
 	{
 		SelectedObject = LeftHandSlot;
-		//UE_LOG(LogTemp, Warning, TEXT("Our character will perform the next action with his LEFT hand"));						 //---> display message
+		PopUp.Broadcast(FString(TEXT("Performing action with LEFT hand!")));
 	}
 
 	//Exit rotation mode
@@ -505,14 +505,40 @@ void AMyCharacter::Pause()
 
 }
 
+void AMyCharacter::Submit()
+{
+	if (UGameplayStatics::GetCurrentLevelName(GetWorld(), true) == "TutorialLevel")
+	{
+		return;
+	}
+	Sub.Broadcast(FString(TEXT("Are you sure? \nPress 'O' again to confirm\nPress 'Escape' to resume playing")), true);
+}
+
+void AMyCharacter::ReturnToPlay()
+{
+	if (UGameplayStatics::GetCurrentLevelName(GetWorld(), true) == "TutorialLevel")
+	{
+		return;
+	}
+	Sub.Broadcast(FString(TEXT("")), false);
+}
+
 void AMyCharacter::Click()
 {
 	//Exit function call if invalid apelation
-	if (!HitObject.IsValidBlockingHit() || HitObject.Distance > MaxGraspLength)
+	if (!HitObject.IsValidBlockingHit())
 	{
-		PopUpMessage = ActionNotValid;																	//---> display message
+		PopUp.Broadcast(FString(TEXT("Action not valid!")));
 		return;                                                                                                                    
 	}
+
+	//Case if too far away
+	if (HitObject.Distance > MaxGraspLength)
+	{
+		PopUp.Broadcast(FString(TEXT("You need to get closer!")));
+		return;
+	}
+
 	//Behaviour when we want to drop the item currently held in hand
 	if (SelectedObject)
 	{
@@ -542,9 +568,8 @@ void AMyCharacter::PickToInventory(AActor* CurrentObject)
 {
 	//Check if item is pickable (doesn't have any other on top of it)
 	if (HasAnyOnTop(CurrentObject))
-	{
-		//UE_LOG(LogTemp, Warning, TEXT("You can't do that because it has something on it!"));                                             //---> display message           
-		PopUpMessage = SmthOnTop;
+	{        
+		PopUp.Broadcast(FString(TEXT("Make sure no item is on top!")));
 		return;
 	}
 
@@ -579,14 +604,13 @@ void AMyCharacter::PickToInventory(AActor* CurrentObject)
 void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurface)
 {
 	if (!HitSurface.IsValidBlockingHit())
-	{
-		//UE_LOG(LogTemp, Warning, TEXT("You need to get closer\nin order to do that!"));                                                //---> display message              
-		PopUpMessage = ActionNotValid;
+	{          
+		PopUp.Broadcast(FString(TEXT("Action not valid!")));
 		return;
 	}
 	if (HitSurface.Distance > MaxGraspLength)
 	{
-		PopUpMessage = GetCloser;
+		PopUp.Broadcast(FString(TEXT("You need to get closer!")));
 		return;
 	}
 
@@ -616,12 +640,13 @@ void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurfac
 		}
 		TwoHandSlot.Empty();
 		GetStaticMesh(SelectedObject)->SetCustomDepthStencilValue(1);
+		GetStaticMesh(SelectedObject)->SetRenderCustomDepth(false);
 		SelectedObject = nullptr;
 		return;
 	}
 
 	PlaceOnTop(CurrentObject, HitSurface);
-
+	
 	//Reset ignored parameters
 	TraceParams.ClearIgnoredComponents();
 
@@ -662,6 +687,8 @@ void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurfac
 
 void AMyCharacter::SwitchRotationAxis()
 {
+	//Nothing to rotate!                                          //---> display message      
+
 	//Exit function call if rotation is not permited here
 	if (!bRotationModeAllowed)
 	{

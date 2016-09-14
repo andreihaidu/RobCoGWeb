@@ -27,6 +27,9 @@ enum class EItemType : uint8
 #include "GameFramework/Character.h"
 #include "MyCharacter.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStringDelegate, FString, PopupMessage);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSubmitProgress, FString, PopupMessage, bool, EndOrResume);
+
 UCLASS()
 class ROBCOGWEB_API AMyCharacter : public ACharacter
 {
@@ -48,44 +51,11 @@ public:
 	//Camera component for our character
 	class UCameraComponent* MyCharacterCamera;
 
-	//Function to return a string out of the enum type
-	template<typename TEnum>
-	static FORCEINLINE FString GetEnumValueToString(const FString& Name, TEnum Value)
-	{
-		const UEnum* enumPtr = FindObject<UEnum>(ANY_PACKAGE, *Name, true);
-		if (!enumPtr)
-		{
-			return FString("Invalid");
-		}
-		return enumPtr->GetEnumName((int32)Value);
-	}
-
-	//String used for displaying help messages for the user
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	FString DisplayMessageLeft;
-
-	//String used for displaying help messages for the user
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	FString DisplayMessageRight;
-
-	//String used for displaying help messages for the user
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FString PopUpMessage;
-
-	//Some variables to store pop up messages
-	FString OneHandOcupied;
-	FString SmthOnTop;
-	FString ActionNotValid;
-	FString GetCloser;
-
 	//Array to store all actors in the world; used to find which object is selected
 	TArray<AActor*> AllActors;
 
 	//TMap which keeps the open/closed state for our island drawers
 	TMap<AActor*, EAssetState> AssetStateMap;
-
-	//Variable to store the current level, used for changing displayed messages    --> Maybe move the whole logic to the GameMode class
-	int CurrentLevelInteger;
 
 	//TMap which keeps the interractive items from the kitchen
 	TMap<AActor*, EItemType> ItemMap;
@@ -98,11 +68,11 @@ public:
 
 	//Pointer to the item held in the right hand
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-		AActor* RightHandSlot;
+	AActor* RightHandSlot;
 
 	//Pointer to the item held in the left hand
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-		AActor* LeftHandSlot;
+	AActor* LeftHandSlot;
 
 	//Parameters for the ray trace
 	FCollisionQueryParams TraceParams;
@@ -152,15 +122,23 @@ public:
 	//Limit of items that can be picked up as a stack at once
 	int StackGrabLimit;
 
+	//Delegate declaration for pop-up message 
+	UPROPERTY(BlueprintAssignable, Category = "Interface")
+	FStringDelegate PopUp;
+
+	//Delegate which tells the game mode when the players feels the tasks are complete
+	UPROPERTY(BlueprintAssignable, Category = "Interface")
+	FSubmitProgress Sub;
+
 
 protected:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
-		float BaseTurnRate;
+	float BaseTurnRate;
 
 	/** Base look up/down rate, in deg/sec. Other scaling may affect final rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
-		float BaseLookUpRate;
+	float BaseLookUpRate;
 
 	/** Handles movement of our character forward/backward */
 	void MoveForward(const float Value);
@@ -176,6 +154,12 @@ protected:
 
 	//Switches between which hand will perform the next action
 	void SwitchSelectedHand();
+
+	//Method to submit the progress of the level
+	void Submit();
+
+	//Method to return to playing after pressing 'O'
+	void ReturnToPlay();
 
 	//Function which returns the static mesh component of the selected object; NOT efficient --> Look for alternatives
 	UStaticMeshComponent* GetStaticMesh(const AActor* Actor);
@@ -214,8 +198,5 @@ protected:
 	//Method to check if an item is pickable (that it does not have other item on top of it)
 	bool HasAnyOnTop(const AActor* CheckActor);
 
-public:
-	/** Returns FirstPersonCameraComponent subobject **/
-	FORCEINLINE class UCameraComponent* GetMyCharacterCamera() const { return MyCharacterCamera; }
 
 };
