@@ -24,12 +24,12 @@ The class handles ending game as well as updating the progress which the user ha
 The Actors effectively used in the game are not C++ templates, but rather Blueprints derived from the written code class. Blueprints are an effective way to communicate inside the engine and therefore it complements the C++ code functionality.
 
 MyCharacterHUD_BP:
--Draws canvas to the center of the screen
--Has message slots which are read from variables stored in GameMode and printed to the screen
+- Draws canvas to the center of the screen
+- Has message slots which are read from variables stored in GameMode and printed to the screen
 
 MyCharacter_BP:
--Draws the HUD to the display screen
--Handles pausing the game
+- Draws the HUD to the display screen
+- Handles pausing the game
 
 Widgets such as Main Menu, Pause Menu, End Game Screen are also defined as blueprints.
 
@@ -41,6 +41,6 @@ Currently there are 4 static assets: Oven area, Sink area, Fridge area, Island a
 ### Levels
 
 At the moment there are two levels:
--Breakfast Level: where the player needs to set up the table for a couple of people to have breakfast
--Cleaning Level: where the player needs to clean the kitchen and place everything where he thinks they belong.
+- Breakfast Level: where the player needs to set up the table for a couple of people to have breakfast
+- Cleaning Level: where the player needs to clean the kitchen and place everything where he thinks they belong.
 There is also a 'Tutorial' Level which helps the player get familiar with the controls and the environment.
