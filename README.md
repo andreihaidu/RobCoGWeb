@@ -36,5 +36,11 @@ Widgets such as Main Menu, Pause Menu, End Game Screen are also defined as bluep
 ### Assets and Models
 
 Most of the assets used are .fbx and corespond to real life assets. They have been either created using Blender or 3d scanned and added to the engine and the world.
+Currently there are 4 static assets: Oven area, Sink area, Fridge area, Island area, all of which have drawers or doors which can be opened and closed, and around 40 movable assets, varying from silverware (spoons, knives, etc.) to bowls and plates and consumables (milk, cereal, salt, etc.)
 
 ### Levels
+
+At the moment there are two levels:
+-Breakfast Level: where the player needs to set up the table for a couple of people to have breakfast
+-Cleaning Level: where the player needs to clean the kitchen and place everything where he thinks they belong.
+There is also a 'Tutorial' Level which helps the player get familiar with the controls and the environment.
