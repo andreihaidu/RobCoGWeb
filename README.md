@@ -40,7 +40,7 @@ Currently there are 4 static assets: Oven area, Sink area, Fridge area, Island a
 
 ### Levels
 
-At the moment there are two levels:
+- Tutorial Level:  helps the player get familiar with the controls and the environment
 - Breakfast Level: where the player needs to set up the table for a couple of people to have breakfast
 - Cleaning Level: where the player needs to clean the kitchen and place everything where he thinks they belong.
-There is also a 'Tutorial' Level which helps the player get familiar with the controls and the environment.
+
