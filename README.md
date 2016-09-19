@@ -5,7 +5,7 @@
  
 ### C++ Classes
 
-The user controls a first person character with behaviour set up in the C++ class 'MyCharacter'. The character can move around the virtual world, open and close doors or drawers, pick up items, drop items, adjusting position and rotation of items held in hand as well as picking multiple items at once. It has two item slots, one coresponding to each hand, and a two-hand slot used when picking several items with both hands.
+The user controls a first person character with behaviour set up in the C++ class 'MyCharacter'. The character can move around the virtual world, open and close doors or drawers, pick up items, drop items, adjust position and rotation of items held in hand as well as picking multiple items at once. It has two item slots, one coresponding to each hand, and a two-hand slot used when picking several items with both hands.
 
 #### MyCharacter constructive logic
 
