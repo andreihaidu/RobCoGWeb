@@ -6,7 +6,7 @@
 #include "GameFramework/GameMode.h"
 #include "RobCogWebGameMode.generated.h"
 
-//Enum used in the TMap which keeps the state of the drawer
+//Enum to store the level name, used to switch between in-game screen messages
 UENUM(BlueprintType)
 enum class ECurrentLevel : uint8
 {
@@ -87,7 +87,7 @@ public:
 
 	//Function to respond to the submit progrss delegate sent by the character class
 	UFUNCTION(BlueprintCallable, Category = "Interface")
-	void Submit(FString Message, bool EndOrResume);
+	void Submit(FString Message, bool bEndOrResume);
 
 	//Function to reset popup text
 	void ResetPopUp();

@@ -8,7 +8,7 @@
 // Sets default values
 AMyCharacter::AMyCharacter()
 {
-	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this character to call Tick() every frame
 	PrimaryActorTick.bCanEverTick = true;
 
 	// Set this pawn to be controlled by the lowest-numbered player
@@ -17,7 +17,7 @@ AMyCharacter::AMyCharacter()
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(5.f, 80.0f);
 
-	// set our turn rates for input
+	// Set our turn rates for input
 	BaseTurnRate = 45.f;
 	BaseLookUpRate = 45.f;
 
@@ -27,7 +27,7 @@ AMyCharacter::AMyCharacter()
 	MyCharacterCamera->RelativeLocation = FVector(0.f, 0.f, 64.f); // Position the camera
 	MyCharacterCamera->bUsePawnControlRotation = true;
 
-	//Set the value of the applied force
+	//Set the value of the applied force on the handle when opening or closing drawers
 	AppliedForce = FVector(1000, 1000, 1000);
 
 	//Initialize TraceParams parameter
@@ -36,7 +36,7 @@ AMyCharacter::AMyCharacter()
 	TraceParams.bTraceAsyncScene = true;
 	TraceParams.bReturnPhysicalMaterial = false;
 
-	//Set the maximum grasping length
+	//Set the maximum grasping length (Length of the 'hands' of the character)
 	MaxGraspLength = 200.f;
 
 	//Set the pointers to the items held in hands to null at the begining of the game
@@ -74,7 +74,7 @@ void AMyCharacter::BeginPlay()
 	//Gets all actors in the world, used for identifying our drawers and setting their initial state to closed
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), AllActors);
 
-	//Loop that checks if current object matches our drawer
+	//Loop that maps the actors in the level world to the proper array list
 	for (const auto ActorIt : AllActors)
 	{
 		//Set default stencil value (for blue outline effect)
@@ -95,13 +95,13 @@ void AMyCharacter::BeginPlay()
 				AssetStateMap.Add(ActorIt->GetAttachParentActor(), EAssetState::Closed);
 			}
 		}
-		//Remember to tag items when adding them into the world
+		//Remember to tag pickable items with 'Item' when adding them into the world
 		else if (ActorIt->ActorHasTag(FName(TEXT("Item"))))
 		{
 			ItemMap.Add(ActorIt, EItemType::GeneralItem);
 		}
 
-		//Populate the list of stackable items in world
+		//Populate the list of stackable items in world. These assets should have the 'Stackable' tag
 		if (ActorIt->ActorHasTag(FName(TEXT("Stackable"))))
 		{
 			AllStackableItems.Add(ActorIt);
@@ -109,6 +109,10 @@ void AMyCharacter::BeginPlay()
 	}
 }
 
+/*This method loops through the components of an actor 
+in order to retrieve the Static Mesh component (SM)
+The SM is the component manipulated when updating world positioning, physics, collision etc.
+*/
 UStaticMeshComponent* AMyCharacter::GetStaticMesh(const AActor* Actor)
 {
 	for (auto Component : Actor->GetComponents())
@@ -121,16 +125,26 @@ UStaticMeshComponent* AMyCharacter::GetStaticMesh(const AActor* Actor)
 	return nullptr;
 }
 
+/*Function which retrieves an arranged list of assets with the same nature (coresponding tags: Item, Stackable, ItemType)
+which are placed on top of one another in the world (eg: a stack of plates)
+The list is used for picking up multiple items at once in the GrabWithTwoHands() method.
+@param AActor* ContainedItem  -->  Actor contained within the stack needed
+*/
 TSet<AActor*> AMyCharacter::GetStack(AActor* ContainedItem)
 {
+	//Create an empty array to be populated with proper values
 	TSet<AActor*> StackList;
 	StackList.Empty();
 
+	//Make sure that the function parameter is logicaly valid and if not return an empty stack and exit the function call
 	if (!ContainedItem->ActorHasTag(FName(TEXT("Stackable"))))
 	{
 		return StackList;
 	}
 
+	/*Loop through the list of stackable items created in BeginPlay() and check for matching tags, as well as world positioning, 
+	and populate the array with elements which are found to have the center on the same Z axis as the recieved parameter (+/- a small offset)
+	*/
 	for (const auto Iterator : AllStackableItems)
 	{
 		if (Iterator->Tags == ContainedItem->Tags)
@@ -144,6 +158,8 @@ TSet<AActor*> AMyCharacter::GetStack(AActor* ContainedItem)
 			}
 		}
 	}
+
+	//Bubble sort algorithm
 	bool swapped = true;
 	int j = 0;
 	AActor* tmp;
@@ -163,6 +179,9 @@ TSet<AActor*> AMyCharacter::GetStack(AActor* ContainedItem)
 	return StackList;
 }
 
+/*Responds to Right Click input
+Picks up stacks of items at once using both 'hands'
+*/
 void AMyCharacter::GrabWithTwoHands()
 {
 	/**
@@ -176,12 +195,18 @@ void AMyCharacter::GrabWithTwoHands()
 		return;
 	}
 
-	//If no object is blocking the hit or no actor is highlighted
-	if (!HitObject.IsValidBlockingHit() || !HighlightedActor)
+	//If no object is blocking the hit
+	if (!HitObject.IsValidBlockingHit())
 	{
 		//PopUpMessage = ActionNotValid;
 		PopUp.Broadcast(FString(TEXT("Action not valid!")));
 		return;                                                                                                           
+	}
+
+	//No actor focused
+	if (!HighlightedActor)
+	{
+		PopUp.Broadcast(FString(TEXT("Nothing to pick")));
 	}
 
 	//If highlighted actor is not pickable
@@ -191,15 +216,18 @@ void AMyCharacter::GrabWithTwoHands()
 		return;
 	}
 
+	//If object is too far away
 	if (HitObject.Distance > MaxGraspLength)
 	{
 		PopUp.Broadcast(FString(TEXT("You need to get closer!")));
 		return;
 	}
 
+	//Local variables to perform computation
 	TSet<AActor*> LocalStackVariable = GetStack(HighlightedActor);
 	TSet<AActor*> ReturnStack;
 
+	//Making sure stack is pickable by not having any elements on top (eg: Spoon, Knife)
 	if (HasAnyOnTop(LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num() - 1)]))
 	{
 		PopUp.Broadcast(FString(TEXT("Make sure no item is on top!")));
@@ -226,6 +254,11 @@ void AMyCharacter::GrabWithTwoHands()
 	}
 }
 
+/*Method to place a selected object at a certain location, relative to a line trace hit result
+Making sure the function call is valid needs to be done BEFORE calling the function
+@param AActor* ActorToPlace  -->  Item to be placed back in the world
+@param FHitResult HitSurface  -->  New world location 
+*/
 void AMyCharacter::PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface)
 {
 	FVector HMin, HMax;
@@ -267,13 +300,18 @@ void AMyCharacter::PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface)
 	RotationAxisIndex = 0;
 }
 
+/*Open or close drawers and doors by adding force to the static mesh component.
+Actors with this property are stored in the AssetStateMap.
+Physical constraint joints are used within the editor to restrict the movement of drawers relative to the furniture body.*/
 void AMyCharacter::OpenCloseAction(AActor* OpenableActor)
 {
+	//Switch to parent if user has clicked on a handle
 	if (OpenableActor->GetName().Contains("Handle"))
 	{
 		OpenableActor = OpenableActor->GetAttachParentActor();
 	}
 
+	//Check that function call is valid
 	if (!AssetStateMap.Contains(OpenableActor))
 	{
 		return;
@@ -281,11 +319,13 @@ void AMyCharacter::OpenCloseAction(AActor* OpenableActor)
 
 	else
 	{
+		//Apply force to open
 		if (AssetStateMap.FindRef(OpenableActor) == EAssetState::Closed)
 		{
 			GetStaticMesh(OpenableActor)->AddImpulse(AppliedForce * OpenableActor->GetActorForwardVector());
 			AssetStateMap.Add(OpenableActor, EAssetState::Open);
 		}
+		//Apply force to close
 		else if (AssetStateMap.FindRef(OpenableActor) == EAssetState::Open)
 		{
 			GetStaticMesh(OpenableActor)->AddImpulse(-AppliedForce * OpenableActor->GetActorForwardVector());
@@ -477,6 +517,7 @@ void AMyCharacter::MoveRight(const float Value)
 	}
 }
 
+/*Toggle between which hand to perform actions with*/
 void AMyCharacter::SwitchSelectedHand()
 {
 	if (TwoHandSlot.Num())
@@ -500,11 +541,13 @@ void AMyCharacter::SwitchSelectedHand()
 	RotationAxisIndex = 0;
 }
 
+//Empty body, behaviour set up in blueprint
 void AMyCharacter::Pause()
 {
 
 }
 
+/*Method to finish the game and submit the progress to the database*/
 void AMyCharacter::Submit()
 {
 	if (UGameplayStatics::GetCurrentLevelName(GetWorld(), true) == "TutorialLevel")
@@ -514,6 +557,7 @@ void AMyCharacter::Submit()
 	Sub.Broadcast(FString(TEXT("Are you sure? \nPress 'O' again to confirm\nPress 'Escape' to resume playing")), true);
 }
 
+/*Method to return to playing state after calling the Submit() method*/
 void AMyCharacter::ReturnToPlay()
 {
 	if (UGameplayStatics::GetCurrentLevelName(GetWorld(), true) == "TutorialLevel")
@@ -523,6 +567,8 @@ void AMyCharacter::ReturnToPlay()
 	Sub.Broadcast(FString(TEXT("")), false);
 }
 
+/*Function to handle the left click input event.
+Based on the current state of the character it either picks up or drops an item in the world, or open/close drawers and doors*/
 void AMyCharacter::Click()
 {
 	//Exit function call if invalid apelation
@@ -564,6 +610,8 @@ void AMyCharacter::Click()
 	}
 }
 
+/*Method called to pick up an item from the world in one of the hand slots of the character.
+@param AActor* CurrentObject  -->  Object to pick*/
 void AMyCharacter::PickToInventory(AActor* CurrentObject)
 {
 	//Check if item is pickable (doesn't have any other on top of it)
@@ -601,6 +649,11 @@ void AMyCharacter::PickToInventory(AActor* CurrentObject)
 	TraceParams.AddIgnoredComponent(GetStaticMesh(CurrentObject));
 }
 
+/*Method called when wanting to place an object previously picked up back in the world.
+After making sure that the call is valid and calculating the new location for the object,
+all properties modified for manipulation purposes need to be reset to default.
+@param AActor* CurrentObject  -->  Object currently manipulated and needing to be placed
+@param FHitResult HitSurface  -->  Surface on which the object needs to be placed*/
 void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurface)
 {
 	if (!HitSurface.IsValidBlockingHit())
@@ -687,8 +740,6 @@ void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurfac
 
 void AMyCharacter::SwitchRotationAxis()
 {
-	//Nothing to rotate!                                          //---> display message      
-
 	//Exit function call if rotation is not permited here
 	if (!bRotationModeAllowed)
 	{
@@ -697,7 +748,7 @@ void AMyCharacter::SwitchRotationAxis()
 	//Increment the index which coresponds to rotation axis
 	RotationAxisIndex++;
 
-	//Recycle after the third axis
+	//Recycle after the third axis is reached
 	if (RotationAxisIndex == 4)
 	{
 		RotationAxisIndex = 1;
@@ -782,6 +833,8 @@ void AMyCharacter::MoveItemY(const float Value)
 	}
 }
 
+/*Method which stop the character from picking objects if they support any other item on top
+@param AActor* CheckActor  -->  Object on top of which to search for other items*/
 bool AMyCharacter::HasAnyOnTop(const AActor* CheckActor)
 {
 	GetStaticMesh(CheckActor)->GetLocalBounds(Min, Max);

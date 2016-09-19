@@ -2,7 +2,7 @@
 
 #pragma once
 
-//Enum used in the TMap which keeps the state of the drawer
+//Enum used in the TMap which keeps the state of the drawers
 UENUM(BlueprintType)
 enum class EAssetState : uint8
 {
@@ -27,8 +27,9 @@ enum class EItemType : uint8
 #include "GameFramework/Character.h"
 #include "MyCharacter.generated.h"
 
+//Declaration of delegates which handle comunication between project classes (Character and GameMode)
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStringDelegate, FString, PopupMessage);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSubmitProgress, FString, PopupMessage, bool, EndOrResume);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSubmitProgress, FString, PopupMessage, bool, bEndOrResume);
 
 UCLASS()
 class ROBCOGWEB_API AMyCharacter : public ACharacter
@@ -57,7 +58,7 @@ public:
 	//TMap which keeps the open/closed state for our island drawers
 	TMap<AActor*, EAssetState> AssetStateMap;
 
-	//TMap which keeps the interractive items from the kitchen
+	//TMap which keeps a reference to the interactive items from the kitchen
 	TMap<AActor*, EItemType> ItemMap;
 
 	//Actor pointer for the item currently selected
@@ -146,10 +147,10 @@ protected:
 	/** Handles movement of our character, left and right */
 	void MoveRight(const float Value);
 
-	//Handles the input from the mouse
+	//Most important method in the class definition, handles picking, droping and open/close actions
 	void Click();
 
-	//Method to pick up stack
+	//Method to pick up stacks of items
 	void GrabWithTwoHands();
 
 	//Switches between which hand will perform the next action
@@ -158,10 +159,10 @@ protected:
 	//Method to submit the progress of the level
 	void Submit();
 
-	//Method to return to playing after pressing 'O'
+	//Method to return to playing after pressing submit
 	void ReturnToPlay();
 
-	//Function which returns the static mesh component of the selected object; NOT efficient --> Look for alternatives
+	//Function which returns the static mesh component of the selected object
 	UStaticMeshComponent* GetStaticMesh(const AActor* Actor);
 
 	//Function to pick an item in one of our hands

@@ -3,7 +3,7 @@
 #include "RobCogWeb.h"
 #include "RobCogWebGameMode.h"
 
-
+//Default construct varaibles 
 ARobCogWebGameMode::ARobCogWebGameMode()
 {
 
@@ -11,6 +11,7 @@ ARobCogWebGameMode::ARobCogWebGameMode()
 	EndLevelMessage = FString(TEXT(""));
 }
 
+//Called every frame
 void ARobCogWebGameMode::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -19,15 +20,17 @@ void ARobCogWebGameMode::Tick(float DeltaTime)
 
 }
 
+//Initializing variables
 void ARobCogWebGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
 	CurrentProgress = ELevelProgress::Playing;
 	
+	//Pointer to the character currently in play
 	ThePlayer = Cast<AMyCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
 
-	//Bind the delegate to a function call
+	//Bind the delegates to a function call
 	if (ThePlayer)
 	{
 		ThePlayer->PopUp.AddDynamic(this, &ARobCogWebGameMode::PopUp);
@@ -35,6 +38,7 @@ void ARobCogWebGameMode::BeginPlay()
 	}
 }
 
+//Print a message to the screen whenever the character performs actions which are not permited
 void ARobCogWebGameMode::PopUp(FString Message)
 {
 	PopUpMessage = Message;
@@ -42,11 +46,11 @@ void ARobCogWebGameMode::PopUp(FString Message)
 	GetWorld()->GetTimerManager().SetTimer(ResetPopUpTimer, this, &ARobCogWebGameMode::ResetPopUp , 3.f, false);
 }
 
-void ARobCogWebGameMode::Submit(FString Message, bool EndOrResume)
+void ARobCogWebGameMode::Submit(FString Message, bool bEndOrResume)
 {
 	EndLevelMessage = Message;
 
-	if (EndOrResume)
+	if (bEndOrResume)
 	{
 		if (CurrentProgress == ELevelProgress::Playing)
 		{
@@ -79,7 +83,7 @@ void ARobCogWebGameMode::UpdateLeftText(FString Message)
 	DisplayMessageLeft = Message;
 }
 
-
+//Change display messages based on the state of the character
 void ARobCogWebGameMode::UpdateTextBoxes()
 {
 	switch (LevelName)
@@ -98,7 +102,7 @@ void ARobCogWebGameMode::UpdateTextBoxes()
 				if (ThePlayer->AssetStateMap.Contains(ThePlayer->HighlightedActor))
 				{
 					UpdateLeftText(FString(TEXT("You can open and close drawers or doors.")));
-					UpdateRightText(FString(TEXT("You need a free hand in order to do that!")));
+					UpdateRightText(FString(TEXT("You need a free hand \nin order to do that!")));
 				}
 
 				else if (ThePlayer->ItemMap.Contains(ThePlayer->HighlightedActor))
