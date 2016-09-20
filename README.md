@@ -9,12 +9,12 @@ The user controls a first person character with behaviour set up in the C++ clas
 
 #### MyCharacter constructive logic
 
-The HUD used has a canvas drawn in the middle of the screen. Since the perspective is first person, a ray trace is cast from the camera component to the direction the character is facing, returning the Hit Object of the item in the world which the player is pointing at.
-This Hit Object is updated every frame and stored in the HighlightedActor variable. Depending on it's nature and properties, it responds to the inputs gived by the user differently. For example, when focusing on an item which can pe interacted, a highlight effect is added to help the user. By clicking, the highlighted item will be removed from the world and added to one of the hand slots. Alternatively if the user is allready holding an item and clicks on a surface, the action will be to drop it back in the world at the determined location.
+The HUD used has a canvas drawn in the middle of the screen. Since the perspective is first person, a ray trace is cast from the camera component to the direction the character is facing, returning the HitObject of the item in the world which the player is pointing at.
+This HitObject is updated every frame and stored in the HighlightedActor variable. Depending on it's nature and properties, it responds to the inputs gived by the user differently. For example, when focusing on an item which can pe interacted, a highlight effect is added to help the user. By clicking, the highlighted item will be removed from the world and added to one of the hand slots. Alternatively if the user is allready holding an item and clicks on a surface, the action will be to drop it back in the world at the determined location.
 The logic for picking up stacks works on the same principle, but instead of just manipulating one item, it manipulates a set of items all at once (with respect to having the same nature and properties and being placed in a 'stacked' manner).
 Custom delegates have been implemented to help communicate between classes and send messages to the GameMode which is responsible with the level progress, user interface, as well as in game help messages.
 
-#### RobCogWebGameMode
+#### RobCoGWebGameMode
 
 As mentioned before, the game mode class handles messages to help the user. Whenever a function called is invalid or not permited, the game mode class prints a message to the screen indicating which exactly of his actions is not allowed. The display message is written in the MyCharacter class (depending on the case it popped in) and sent to the game mode to print to the screen.
 The class handles ending game as well as updating the progress which the user has made
@@ -31,7 +31,7 @@ MyCharacter_BP:
 - Draws the HUD to the display screen
 - Handles pausing the game
 
-Widgets such as Main Menu, Pause Menu, End Game Screen are also defined as blueprints.
+Widgets such as MainMenu_BP, EndGame_BP are also defined as blueprints.
 
 ### Assets and Models
 
