@@ -64,6 +64,9 @@ AMyCharacter::AMyCharacter()
 
 	//Default value for how many items can our character pick at once
 	StackGrabLimit = 4;
+	
+	//Default speed multiplier
+	CharacterSpeed = 0.4;
 }
 
 // Called when the game starts or when spawned
