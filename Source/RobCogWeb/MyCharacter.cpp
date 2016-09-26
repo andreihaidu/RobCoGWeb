@@ -252,6 +252,8 @@ void AMyCharacter::GrabWithTwoHands()
 		SelectedObject = LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num()-1)];
 		GetStaticMesh(SelectedObject)->SetCustomDepthStencilValue(2);
 	}
+	
+	UpdateCharacterSpeed();
 }
 
 /*Method to place a selected object at a certain location, relative to a line trace hit result
@@ -501,7 +503,7 @@ void AMyCharacter::MoveForward(const float Value)
 		}
 		// add movement in that direction
 		const FVector Direction = FRotationMatrix(Rotation).GetScaledAxis(EAxis::X);
-		AddMovementInput(Direction, Value *0.5);
+		AddMovementInput(Direction, Value * CharacterSpeed);
 	}
 }
 
@@ -513,7 +515,7 @@ void AMyCharacter::MoveRight(const float Value)
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FVector Direction = FRotationMatrix(Rotation).GetScaledAxis(EAxis::Y);
 		// add movement in that direction
-		AddMovementInput(Direction, Value *0.5);
+		AddMovementInput(Direction, Value * CharacterSpeed);
 	}
 }
 
@@ -608,6 +610,7 @@ void AMyCharacter::Click()
 			OpenCloseAction(HighlightedActor);
 		}
 	}
+	UpdateCharacterSpeed();
 }
 
 /*Method called to pick up an item from the world in one of the hand slots of the character.
@@ -862,6 +865,29 @@ bool AMyCharacter::HasAnyOnTop(const AActor* CheckActor)
 	return false;
 }
 
+void AMyCharacter::UpdateCharacterSpeed()
+{
+	//Reset to default
+	CharacterSpeed = 0.4;
+
+	//Check if holding stack
+	if (TwoHandSlot.Num())
+	{
+		CharacterSpeed = 0.15;
+		return;
+	}
+
+	//Decrement for each hand slot ocupied
+	if (LeftHandSlot)
+	{
+		CharacterSpeed -= 0.1;
+	}
+	if (RightHandSlot)
+	{
+		CharacterSpeed -= 0.1;
+	}
+	return;
+}
 
 
 
