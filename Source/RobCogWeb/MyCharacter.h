@@ -131,7 +131,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interface")
 	FSubmitProgress Sub;
 
-
+	//Variable to change the speed of the character
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+	float CharacterSpeed;
+	
 protected:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
@@ -199,5 +202,7 @@ protected:
 	//Method to check if an item is pickable (that it does not have other item on top of it)
 	bool HasAnyOnTop(const AActor* CheckActor);
 
+	//Method to update the speed based on it's state (if it holds items)
+	void UpdateCharacterSpeed();
 
 };
