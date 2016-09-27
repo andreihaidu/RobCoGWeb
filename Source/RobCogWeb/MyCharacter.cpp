@@ -8,7 +8,7 @@
 // Sets default values
 AMyCharacter::AMyCharacter()
 {
-	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this character to call Tick() every frame
 	PrimaryActorTick.bCanEverTick = true;
 
 	// Set this pawn to be controlled by the lowest-numbered player
@@ -17,7 +17,7 @@ AMyCharacter::AMyCharacter()
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(5.f, 80.0f);
 
-	// set our turn rates for input
+	// Set our turn rates for input
 	BaseTurnRate = 45.f;
 	BaseLookUpRate = 45.f;
 
@@ -27,7 +27,7 @@ AMyCharacter::AMyCharacter()
 	MyCharacterCamera->RelativeLocation = FVector(0.f, 0.f, 64.f); // Position the camera
 	MyCharacterCamera->bUsePawnControlRotation = true;
 
-	//Set the value of the applied force
+	//Set the value of the applied force on the handle when opening or closing drawers
 	AppliedForce = FVector(1000, 1000, 1000);
 
 	//Initialize TraceParams parameter
@@ -36,18 +36,18 @@ AMyCharacter::AMyCharacter()
 	TraceParams.bTraceAsyncScene = true;
 	TraceParams.bReturnPhysicalMaterial = false;
 
-	//Set the maximum grasping length
+	//Set the maximum grasping length (Length of the 'hands' of the character)
 	MaxGraspLength = 200.f;
 
 	//Set the pointers to the items held in hands to null at the begining of the game
 	LeftHandSlot = nullptr;
 	RightHandSlot = nullptr;
 
-	//Set the rotations to null
+	//Set the rotations to character's
 	LeftHandRotator = GetActorRotation();
 	RightHandRotator = GetActorRotation();
 
-	//By default our character will perfom actions with the right hand first
+	//By default our character will perfom actions with the right hand 
 	bRightHandSelected = true;
 
 	//At the begining we don't hold an item which can be rotated
@@ -64,6 +64,9 @@ AMyCharacter::AMyCharacter()
 
 	//Default value for how many items can our character pick at once
 	StackGrabLimit = 4;
+	
+	//Default speed multiplier
+	CharacterSpeed = 0.4;
 }
 
 // Called when the game starts or when spawned
@@ -74,22 +77,7 @@ void AMyCharacter::BeginPlay()
 	//Gets all actors in the world, used for identifying our drawers and setting their initial state to closed
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), AllActors);
 
-	FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
-
-	if (LevelName == TEXT("TutorialLevel"))
-	{
-		CurrentLevelInteger = 1;
-	}
-	else if (LevelName == TEXT("BreakfastLevel"))
-	{
-		CurrentLevelInteger = 2;
-	}
-	else if (LevelName == TEXT("CleaningLevel"))
-	{
-		CurrentLevelInteger = 3;
-	}
-
-	//Loop that checks if current object matches our drawer
+	//Loop that maps the actors in the level world to the proper array list
 	for (const auto ActorIt : AllActors)
 	{
 		//Set default stencil value (for blue outline effect)
@@ -110,13 +98,13 @@ void AMyCharacter::BeginPlay()
 				AssetStateMap.Add(ActorIt->GetAttachParentActor(), EAssetState::Closed);
 			}
 		}
-		//Remember to tag items when adding them into the world
+		//Remember to tag pickable items with 'Item' when adding them into the world
 		else if (ActorIt->ActorHasTag(FName(TEXT("Item"))))
 		{
 			ItemMap.Add(ActorIt, EItemType::GeneralItem);
 		}
 
-		//Populate the list of stackable items in world
+		//Populate the list of stackable items in world. These assets should have the 'Stackable' tag
 		if (ActorIt->ActorHasTag(FName(TEXT("Stackable"))))
 		{
 			AllStackableItems.Add(ActorIt);
@@ -124,6 +112,10 @@ void AMyCharacter::BeginPlay()
 	}
 }
 
+/*This method loops through the components of an actor 
+in order to retrieve the Static Mesh component (SM)
+The SM is the component manipulated when updating world positioning, physics, collision etc.
+*/
 UStaticMeshComponent* AMyCharacter::GetStaticMesh(const AActor* Actor)
 {
 	for (auto Component : Actor->GetComponents())
@@ -136,16 +128,26 @@ UStaticMeshComponent* AMyCharacter::GetStaticMesh(const AActor* Actor)
 	return nullptr;
 }
 
+/*Function which retrieves an arranged list of assets with the same nature (coresponding tags: Item, Stackable, ItemType)
+which are placed on top of one another in the world (eg: a stack of plates)
+The list is used for picking up multiple items at once in the GrabWithTwoHands() method.
+@param AActor* ContainedItem  -->  Actor contained within the stack needed
+*/
 TSet<AActor*> AMyCharacter::GetStack(AActor* ContainedItem)
 {
+	//Create an empty array to be populated with proper values
 	TSet<AActor*> StackList;
 	StackList.Empty();
 
+	//Make sure that the function parameter is logicaly valid and if not return an empty stack and exit the function call
 	if (!ContainedItem->ActorHasTag(FName(TEXT("Stackable"))))
 	{
 		return StackList;
 	}
 
+	/*Loop through the list of stackable items created in BeginPlay() and check for matching tags, as well as world positioning, 
+	and populate the array with elements which are found to have the center on the same Z axis as the recieved parameter (+/- a small offset)
+	*/
 	for (const auto Iterator : AllStackableItems)
 	{
 		if (Iterator->Tags == ContainedItem->Tags)
@@ -159,6 +161,8 @@ TSet<AActor*> AMyCharacter::GetStack(AActor* ContainedItem)
 			}
 		}
 	}
+
+	//Bubble sort algorithm
 	bool swapped = true;
 	int j = 0;
 	AActor* tmp;
@@ -178,36 +182,61 @@ TSet<AActor*> AMyCharacter::GetStack(AActor* ContainedItem)
 	return StackList;
 }
 
+/*Responds to Right Click input
+Picks up stacks of items at once using both 'hands'
+*/
 void AMyCharacter::GrabWithTwoHands()
 {
-	//Exit function call if invalid apelation
-	if (!HitObject.IsValidBlockingHit() || HitObject.Distance > MaxGraspLength || !HighlightedActor)
-	{
-		PopUpMessage = TEXT("Action not valid!"); 
-		return;                                                                                                             //---> display message
-	}
+	/**
+		Section to treat unacceptable function calls
+	*/
 
-	if (TwoHandSlot.Num() || !HitObject.GetActor()->ActorHasTag(FName(TEXT("Item"))))
+	//If something is allready held in hands
+	if (TwoHandSlot.Num() || LeftHandSlot || RightHandSlot)
 	{
+		PopUp.Broadcast(FString(TEXT("Allready holding something!")));
 		return;
 	}
 
-	if (RightHandSlot || LeftHandSlot)
+	//If no object is blocking the hit
+	if (!HitObject.IsValidBlockingHit())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Can't pick up with both hands if they are not both empty!"));                          //---> display message
-		PopUpMessage = TEXT("Can't pick up with two hands\nif they are not both empty!");
+		//PopUpMessage = ActionNotValid;
+		PopUp.Broadcast(FString(TEXT("Action not valid!")));
+		return;                                                                                                           
+	}
+
+	//No actor focused
+	if (!HighlightedActor)
+	{
+		PopUp.Broadcast(FString(TEXT("Nothing to pick")));
+	}
+
+	//If highlighted actor is not pickable
+	if (!HitObject.GetActor()->ActorHasTag(FName(TEXT("Stackable"))))
+	{
+		PopUp.Broadcast(FString(TEXT("Can't pick that with two hands")));
 		return;
 	}
 
+	//If object is too far away
+	if (HitObject.Distance > MaxGraspLength)
+	{
+		PopUp.Broadcast(FString(TEXT("You need to get closer!")));
+		return;
+	}
 
+	//Local variables to perform computation
 	TSet<AActor*> LocalStackVariable = GetStack(HighlightedActor);
 	TSet<AActor*> ReturnStack;
+
+	//Making sure stack is pickable by not having any elements on top (eg: Spoon, Knife)
 	if (HasAnyOnTop(LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num() - 1)]))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("You can't do that because it has something on it!"));                                  //---> display message
-		PopUpMessage = TEXT("Make sure it does not have anything\non top before picking!");
+		PopUp.Broadcast(FString(TEXT("Make sure no item is on top!")));
 		return;
 	}
+
 	if (HighlightedActor->ActorHasTag(FName(TEXT("Stackable"))))
 	{
 		int FirstIndex = 0;
@@ -226,12 +255,17 @@ void AMyCharacter::GrabWithTwoHands()
 		SelectedObject = LocalStackVariable[FSetElementId::FromInteger(LocalStackVariable.Num()-1)];
 		GetStaticMesh(SelectedObject)->SetCustomDepthStencilValue(2);
 	}
+	
+	UpdateCharacterSpeed();
 }
 
+/*Method to place a selected object at a certain location, relative to a line trace hit result
+Making sure the function call is valid needs to be done BEFORE calling the function
+@param AActor* ActorToPlace  -->  Item to be placed back in the world
+@param FHitResult HitSurface  -->  New world location 
+*/
 void AMyCharacter::PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface)
 {
-	//If surface invalid or too far away																		              //---> display message
-
 	FVector HMin, HMax;
 
 	//Get the bounding limits for our actor to place
@@ -258,6 +292,10 @@ void AMyCharacter::PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface)
 		GetStaticMesh(ActorToPlace)->SetWorldLocation(HitSurface.ImpactPoint + FVector(0.f, 0.f, HMax.Z) + HitSurface.Normal*((-Min) * GetStaticMesh(ActorToPlace)->GetComponentScale()));
 	}
 
+	while (GetStaticMesh(ActorToPlace)->IsOverlappingActor(HitObject.GetActor()))
+	{
+		GetStaticMesh(ActorToPlace)->AddLocalOffset(FVector(0.f, 0.f, 0.1f));
+	}
 	//Reactivate the gravity and other properties which have been modified in order to permit manipulation
 	GetStaticMesh(ActorToPlace)->SetEnableGravity(true);
 	GetStaticMesh(ActorToPlace)->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -267,13 +305,18 @@ void AMyCharacter::PlaceOnTop(AActor* ActorToPlace, FHitResult HitSurface)
 	RotationAxisIndex = 0;
 }
 
+/*Open or close drawers and doors by adding force to the static mesh component.
+Actors with this property are stored in the AssetStateMap.
+Physical constraint joints are used within the editor to restrict the movement of drawers relative to the furniture body.*/
 void AMyCharacter::OpenCloseAction(AActor* OpenableActor)
 {
+	//Switch to parent if user has clicked on a handle
 	if (OpenableActor->GetName().Contains("Handle"))
 	{
 		OpenableActor = OpenableActor->GetAttachParentActor();
 	}
 
+	//Check that function call is valid
 	if (!AssetStateMap.Contains(OpenableActor))
 	{
 		return;
@@ -281,11 +324,13 @@ void AMyCharacter::OpenCloseAction(AActor* OpenableActor)
 
 	else
 	{
+		//Apply force to open
 		if (AssetStateMap.FindRef(OpenableActor) == EAssetState::Closed)
 		{
 			GetStaticMesh(OpenableActor)->AddImpulse(AppliedForce * OpenableActor->GetActorForwardVector());
 			AssetStateMap.Add(OpenableActor, EAssetState::Open);
 		}
+		//Apply force to close
 		else if (AssetStateMap.FindRef(OpenableActor) == EAssetState::Open)
 		{
 			GetStaticMesh(OpenableActor)->AddImpulse(-AppliedForce * OpenableActor->GetActorForwardVector());
@@ -299,8 +344,6 @@ void AMyCharacter::OpenCloseAction(AActor* OpenableActor)
 void AMyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
-	UpdateTextBoxes();
 
 	//Draw a straight line in front of our character
 	Start = MyCharacterCamera->GetComponentLocation();
@@ -442,6 +485,12 @@ void AMyCharacter::SetupPlayerInputComponent(class UInputComponent* InputCompone
 
 	//Pause game
 	InputComponent->BindAction("Pause", IE_Pressed, this, &AMyCharacter::Pause);
+
+	//Submit progress and end the game
+	InputComponent->BindAction("Submit", IE_Pressed, this, &AMyCharacter::Submit);
+
+	//Return to playing 
+	InputComponent->BindAction("ReturnToPlay", IE_Pressed, this, &AMyCharacter::ReturnToPlay);
 }
 
 void AMyCharacter::MoveForward(const float Value)
@@ -457,7 +506,7 @@ void AMyCharacter::MoveForward(const float Value)
 		}
 		// add movement in that direction
 		const FVector Direction = FRotationMatrix(Rotation).GetScaledAxis(EAxis::X);
-		AddMovementInput(Direction, Value *0.5);
+		AddMovementInput(Direction, Value * CharacterSpeed);
 	}
 }
 
@@ -469,10 +518,11 @@ void AMyCharacter::MoveRight(const float Value)
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FVector Direction = FRotationMatrix(Rotation).GetScaledAxis(EAxis::Y);
 		// add movement in that direction
-		AddMovementInput(Direction, Value *0.5);
+		AddMovementInput(Direction, Value * CharacterSpeed);
 	}
 }
 
+/*Toggle between which hand to perform actions with*/
 void AMyCharacter::SwitchSelectedHand()
 {
 	if (TwoHandSlot.Num())
@@ -484,31 +534,62 @@ void AMyCharacter::SwitchSelectedHand()
 	if (bRightHandSelected)
 	{
 		SelectedObject = RightHandSlot;
-		UE_LOG(LogTemp, Warning, TEXT("Our character will perform the next action with his RIGHT hand"));					    //---> display message
+		PopUp.Broadcast(FString(TEXT("Performing action with RIGHT hand!")));
 	}
 	else
 	{
 		SelectedObject = LeftHandSlot;
-		UE_LOG(LogTemp, Warning, TEXT("Our character will perform the next action with his LEFT hand"));						 //---> display message
+		PopUp.Broadcast(FString(TEXT("Performing action with LEFT hand!")));
 	}
 
 	//Exit rotation mode
 	RotationAxisIndex = 0;
 }
 
+//Empty body, behaviour set up in blueprint
 void AMyCharacter::Pause()
 {
 
 }
 
+/*Method to finish the game and submit the progress to the database*/
+void AMyCharacter::Submit()
+{
+	if (UGameplayStatics::GetCurrentLevelName(GetWorld(), true) == "TutorialLevel")
+	{
+		return;
+	}
+	Sub.Broadcast(FString(TEXT("Are you sure? \nPress 'O' again to confirm\nPress 'Escape' to resume playing")), true);
+}
+
+/*Method to return to playing state after calling the Submit() method*/
+void AMyCharacter::ReturnToPlay()
+{
+	if (UGameplayStatics::GetCurrentLevelName(GetWorld(), true) == "TutorialLevel")
+	{
+		return;
+	}
+	Sub.Broadcast(FString(TEXT("")), false);
+}
+
+/*Function to handle the left click input event.
+Based on the current state of the character it either picks up or drops an item in the world, or open/close drawers and doors*/
 void AMyCharacter::Click()
 {
 	//Exit function call if invalid apelation
-	if (!HitObject.IsValidBlockingHit() || HitObject.Distance > MaxGraspLength)
+	if (!HitObject.IsValidBlockingHit())
 	{
-		PopUpMessage = TEXT("Action not valid!");																	//---> display message
+		PopUp.Broadcast(FString(TEXT("Action not valid!")));
 		return;                                                                                                                    
 	}
+
+	//Case if too far away
+	if (HitObject.Distance > MaxGraspLength)
+	{
+		PopUp.Broadcast(FString(TEXT("You need to get closer!")));
+		return;
+	}
+
 	//Behaviour when we want to drop the item currently held in hand
 	if (SelectedObject)
 	{
@@ -532,15 +613,17 @@ void AMyCharacter::Click()
 			OpenCloseAction(HighlightedActor);
 		}
 	}
+	UpdateCharacterSpeed();
 }
 
+/*Method called to pick up an item from the world in one of the hand slots of the character.
+@param AActor* CurrentObject  -->  Object to pick*/
 void AMyCharacter::PickToInventory(AActor* CurrentObject)
 {
 	//Check if item is pickable (doesn't have any other on top of it)
 	if (HasAnyOnTop(CurrentObject))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("You can't do that because it has something on it!"));                                             //---> display message           
-		PopUpMessage = TEXT("Make sure it does not have anything\non top before picking!");
+	{        
+		PopUp.Broadcast(FString(TEXT("Make sure no item is on top!")));
 		return;
 	}
 
@@ -572,17 +655,21 @@ void AMyCharacter::PickToInventory(AActor* CurrentObject)
 	TraceParams.AddIgnoredComponent(GetStaticMesh(CurrentObject));
 }
 
+/*Method called when wanting to place an object previously picked up back in the world.
+After making sure that the call is valid and calculating the new location for the object,
+all properties modified for manipulation purposes need to be reset to default.
+@param AActor* CurrentObject  -->  Object currently manipulated and needing to be placed
+@param FHitResult HitSurface  -->  Surface on which the object needs to be placed*/
 void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurface)
 {
 	if (!HitSurface.IsValidBlockingHit())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("You need to get closer\nin order to do that!"));                                                //---> display message              
-		PopUpMessage = TEXT("Action not valid!");
+	{          
+		PopUp.Broadcast(FString(TEXT("Action not valid!")));
 		return;
 	}
 	if (HitSurface.Distance > MaxGraspLength)
 	{
-		PopUpMessage = TEXT("You need to get closer!");
+		PopUp.Broadcast(FString(TEXT("You need to get closer!")));
 		return;
 	}
 
@@ -612,12 +699,13 @@ void AMyCharacter::DropFromInventory(AActor* CurrentObject, FHitResult HitSurfac
 		}
 		TwoHandSlot.Empty();
 		GetStaticMesh(SelectedObject)->SetCustomDepthStencilValue(1);
+		GetStaticMesh(SelectedObject)->SetRenderCustomDepth(false);
 		SelectedObject = nullptr;
 		return;
 	}
 
 	PlaceOnTop(CurrentObject, HitSurface);
-
+	
 	//Reset ignored parameters
 	TraceParams.ClearIgnoredComponents();
 
@@ -666,7 +754,7 @@ void AMyCharacter::SwitchRotationAxis()
 	//Increment the index which coresponds to rotation axis
 	RotationAxisIndex++;
 
-	//Recycle after the third axis
+	//Recycle after the third axis is reached
 	if (RotationAxisIndex == 4)
 	{
 		RotationAxisIndex = 1;
@@ -751,6 +839,8 @@ void AMyCharacter::MoveItemY(const float Value)
 	}
 }
 
+/*Method which stop the character from picking objects if they support any other item on top
+@param AActor* CheckActor  -->  Object on top of which to search for other items*/
 bool AMyCharacter::HasAnyOnTop(const AActor* CheckActor)
 {
 	GetStaticMesh(CheckActor)->GetLocalBounds(Min, Max);
@@ -778,65 +868,29 @@ bool AMyCharacter::HasAnyOnTop(const AActor* CheckActor)
 	return false;
 }
 
-void AMyCharacter::UpdateTextBoxes()
+void AMyCharacter::UpdateCharacterSpeed()
 {
-	/* 
-		1 -> TutorialLevel
-		2 -> BreakfastLevel
-		3 -> CleaningLevel
-	*/
-	switch (CurrentLevelInteger)
+	//Reset to default
+	CharacterSpeed = 0.4;
+
+	//Check if holding stack
+	if (TwoHandSlot.Num())
 	{
-	case 1 :
-		//Help text to display at the beginig of the game
-		DisplayMessageLeft = TEXT("Use W,A,S,D keys to move around the kitchen.\nFeel free to look anywhere and try anything!");
-		DisplayMessageRight = TEXT("You can use BOTH your hands! \nUse TAB to switch between them!");
+		CharacterSpeed = 0.15;
+		return;
+	}
 
-		//Display message when focused on an interractive item
-		if (HighlightedActor)
-		{
-			DisplayMessageLeft = TEXT("You can interract with items.\nPress click to see what happens!");
-
-			//If item is in a stack, tell the user how he can manipulate it.
-			if (GetStack(HighlightedActor).Num() > 1)
-			{
-				DisplayMessageLeft = TEXT("You can pick up stacked items togheter.\nPress right click to try that out!");
-			}
-		}
-
-		//Rotation and positioning adjustment messages
-		if (SelectedObject && !TwoHandSlot.Num())
-		{
-			DisplayMessageLeft = TEXT("You can adjust the position with arrow keys.\nYou can press 'R' to enter rotation mode!");
-			if (RotationAxisIndex)
-			{
-				DisplayMessageRight = TEXT("Press 'R' to switch between axis.\nUse the mouse wheel to adjust rotation.");
-			}
-		}
-
-		//Message when the user holds stacks
-		if (TwoHandSlot.Num())
-		{
-			DisplayMessageLeft = TEXT("You can create more stacks by placing \nthe same type of items on top of eachother");
-			DisplayMessageRight = TEXT("We don't want to overwork the robot.\nYou can only pick a limited\nnumber of items at once!");
-		}
-		break;
-
-	case 2 :
-		//DisplayMessageLeft = TEXT("Please set up the table for breakfast.\nOne person will eat.");
-		DisplayMessageRight = TEXT("You can press 'P' at any time\nto check the hotkeys.");
-
-		break;
-
-	case 3 :
-		//DisplayMessageLeft = TEXT("Please clean up the kitchen.\nRemember, you can do it however you feel!");
-		DisplayMessageRight = TEXT("You can press 'P' at any time\nto check the hotkeys.");
-
-		break;
+	//Decrement for each hand slot ocupied
+	if (LeftHandSlot)
+	{
+		CharacterSpeed -= 0.1;
+	}
+	if (RightHandSlot)
+	{
+		CharacterSpeed -= 0.1;
 	}
 	return;
 }
-
 
 
 
